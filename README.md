@@ -1,92 +1,117 @@
 # RT25K Discord Bot
 
-A customizable Discord bot built with Discord.js v12, featuring a modular command and event handler system.
+A Discord bot for RT25K with TypeScript support and Discord Activity app integration.
 
 ## Features
 
-- 🚀 Easy-to-use command handler
-- ⚡ Event-driven architecture
-- 🔧 Configurable prefix and command cooldowns
-- 📁 Organized command categories
-- 🔄 Built-in error handling
+- Modern Discord.js v14 implementation
+- Full TypeScript support
+- Command and event handler system
+- Support for both prefix commands and slash commands
+- Express server for Discord Activity app integration
+- Logging with Winston
 
-## Prerequisites
+## Setup
 
-- Node.js v12.0.0 or higher
-- npm (comes with Node.js)
-- A Discord Bot Token from the [Discord Developer Portal](https://discord.com/developers/applications)
-
-## Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/RT25K-bot.git
-   cd RT25K-bot
-   ```
-
+1. Clone the repository
 2. Install dependencies:
    ```bash
    npm install
    ```
-
-3. Configure the bot:
-   - Copy `botconfig/config.example.json` to `botconfig/config.json`
-   - Add your Discord bot token to `botconfig/config.json`
-   - Customize the prefix and command cooldown as needed
-
-4. Start the bot:
+3. Copy the `.env.example` file to `.env` and fill in your Discord bot token and client ID:
+   ```bash
+   cp .env.example .env
+   ```
+4. Build the TypeScript code:
+   ```bash
+   npm run build
+   ```
+5. Start the bot:
    ```bash
    npm start
    ```
 
+## Development
+
+To run the bot in development mode with automatic reloading:
+
+```bash
+npm run dev
+```
+
 ## Project Structure
 
+- `src/` - TypeScript source code
+  - `main.ts` - Main entry point
+  - `commands/` - Bot commands
+    - `info/` - Information commands
+    - `slash/` - Slash commands
+  - `events/` - Event handlers
+    - `client/` - Client events
+    - `guild/` - Guild events
+  - `handlers/` - Command and event handlers
+  - `config/` - Bot configuration
+  - `types/` - TypeScript type definitions
+  - `utils/` - Utility functions
+- `dist/` - Compiled JavaScript code
+- `public/` - Static files for the Express server
+
+## Adding Commands
+
+### Prefix Commands
+
+Create a new file in the `src/commands/category/` directory with the following structure:
+
+```typescript
+import { Message, Client } from 'discord.js';
+
+export default {
+  name: 'commandname',
+  aliases: ['alias1', 'alias2'],
+  category: 'category',
+  description: 'Command description',
+  usage: '[arguments]',
+  cooldown: 5,
+  execute(client, message, args) {
+    // Command code here
+  },
+};
 ```
-RT25K-bot/
-├── commands/           # Command categories
-│   ├── Administration/
-│   └── Information/
-├── events/            # Event handlers
-├── handlers/          # Core handlers
-├── botconfig/         # Configuration files
-│   ├── config.json    # Bot configuration
-│   └── embed.json     # Embed message templates
-├── index.js           # Main bot file
-└── package.json       # Project dependencies
+
+### Slash Commands
+
+Create a new file in the `src/commands/slash/` directory with the following structure:
+
+```typescript
+import { SlashCommandBuilder } from '@discordjs/builders';
+import { CommandInteraction } from 'discord.js';
+
+export default {
+  data: new SlashCommandBuilder()
+    .setName('commandname')
+    .setDescription('Command description'),
+  async execute(interaction: CommandInteraction) {
+    // Command code here
+  },
+};
 ```
 
-## Available Commands
+## Adding Events
 
-### Administration
-- `!ping` - Check bot's latency
-- `!help` - Show help menu
+Create a new file in the `src/events/category/` directory with the following structure:
 
-### Information
-- `!serverinfo` - Display server information
-- `!userinfo [@user]` - Display user information
-- `!botinfo` - Display bot information
+```typescript
+import { Client } from 'discord.js';
 
-## Configuration
-
-Edit `botconfig/config.json` to customize:
-- `token`: Your Discord bot token
-- `prefix`: Command prefix (default: `!`)
-- `defaultCommandCooldown`: Cooldown between command usage in seconds
-
-## Contributing
-
-1. Fork the repository
-2. Create a new branch for your feature
-3. Commit your changes
-4. Push to the branch
-5. Submit a pull request
+export default {
+  name: 'eventname',
+  once: false, // true if the event should only be triggered once
+  execute(client: Client, ...args) {
+    // Event code here
+  },
+};
+```
 
 ## License
 
-This project is licensed under the ISC License. See the [LICENSE](LICENSE) file for details.
-
-## Credits
-
-- Built using [Discord.js](https://discord.js.org/)
-- Template by [Tomato#6966](https://github.com/Tomato6966/Discord-Js-Handler-Template)
-- Maintained by [Your Name]
+ISC

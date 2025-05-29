@@ -1,22 +1,44 @@
 {
-  "name": "discord-js-handler-template",
+  "name": "rt25k-bot",
   "version": "1.0.0",
-  "description": "Discord.js Command and Event Handler Template with example Command usages!",
-  "main": "index.js",
+  "description": "Discord.js Command and Event Handler for RT25K",
+  "main": "dist/main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js"
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "register": "ts-node src/utils/registerCommands.ts"
   },
-  "author": "Tomato#6966 (author of this template)",
+  "author": "Tomato#6966 (original template)",
   "license": "ISC",
   "dependencies": {
+    "@discordjs/builders": "^1.7.0",
+    "@discordjs/rest": "^2.2.0",
+    "@discordjs/core": "^1.1.1",
+    "@discord/embedded-app-sdk": "^2.0.0",
     "ascii-table": "0.0.9",
-    "discord.js": "^12.5.1",
-    "update": "^0.7.4",
-    "upgrade": "^1.1.0"
+    "cors": "^2.8.5",
+    "discord-api-types": "^0.37.67",
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "winston": "^3.17.0"
   },
   "devDependencies": {
-    "ascii-table": "0.0.9",
-    "colors": "^1.4.0"
+    "@types/cors": "^2.8.18",
+    "@types/express": "^5.0.2",
+    "@types/node": "^18.19.100",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "eslint": "^9.25.1",
+    "eslint-config-prettier": "^10.1.2",
+    "eslint-plugin-prettier": "^5.2.6",
+    "prettier": "^3.5.3",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.8.3"
   }
 }
