@@ -113,6 +113,12 @@ module.exports = {
 
       embed.setDescription(matchesText || 'No games found.');
       
+      // Count all games played across all series
+      let totalGamesPlayed = 0;
+      schedule.forEach(match => {
+        totalGamesPlayed += match.games.filter(g => g.homeScore > 0 || g.awayScore > 0).length;
+      });
+      
       // Add win/loss record if there are completed games
       const completedGames = schedule.filter(match => match.seriesWinner || match.seriesScore === '1-1');
       if (completedGames.length > 0) {
@@ -121,6 +127,7 @@ module.exports = {
         let ties = 0;
         
         completedGames.forEach(match => {
+          // Count wins/losses/ties
           if (match.seriesScore === '1-1') {
             ties++;
           } else if (match.seriesWinner?.toLowerCase() === teamFilter.toLowerCase()) {
@@ -136,10 +143,31 @@ module.exports = {
           
         const winRate = (wins + (ties * 0.5)) / (wins + losses + ties) * 100;
         
+        // Add games played/remaining
+        const remainingGames = Math.max(0, 15 - totalGamesPlayed);
+        const gamesPlayedText = `**${totalGamesPlayed}** games played (${remainingGames} of 15 remaining)`;
+        
+        embed.addFields(
+          {
+            name: 'Overall Series Record',
+            value: `${recordText} (${winRate.toFixed(1)}% win rate)`,
+            inline: true
+          },
+          {
+            name: 'Games Played',
+            value: gamesPlayedText,
+            inline: true
+          }
+        );
+      } else {
+        // Still show games played even if no completed series
+        const remainingGames = Math.max(0, 15 - totalGamesPlayed);
+        const gamesPlayedText = `**${totalGamesPlayed}** games played (${remainingGames} of 15 remaining)`;
+        
         embed.addFields({
-          name: 'Overall Series Record',
-          value: `${recordText} (${winRate.toFixed(1)}% win rate)`,
-          inline: true
+          name: 'Games Played',
+          value: gamesPlayedText,
+          inline: false
         });
       }
 

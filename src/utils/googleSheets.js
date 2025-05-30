@@ -188,9 +188,9 @@ async function getSchedule(options = {}) {
           continue;
         }
         
-        // Skip rows where home and away team columns are empty
-        if (!rawData[0] && !rawData[1]) {
-          console.log(`Skipping row ${i} (missing teams)`);
+        // Skip rows where away team column is empty (home team is always the sheet name)
+        if (!rawData[1]) {
+          console.log(`Skipping row ${i} (missing away team)`);
           continue;
         }
         
@@ -206,7 +206,7 @@ async function getSchedule(options = {}) {
           seriesWinner: rawData[8] ? String(rawData[8]).trim() : null
         };
         
-        // Calculate series score and determine winner if there are any played games
+        // Calculate series score if there are any played games
         const playedGames = entry.games.filter(g => g.homeScore > 0 || g.awayScore > 0);
         if (playedGames.length > 0) {
           let homeWins = 0;
@@ -229,17 +229,11 @@ async function getSchedule(options = {}) {
             entry.seriesWinner = entry.awayTeam;
           }
         } else {
+          // No games played yet
           entry.seriesScore = '0-0';
         }
         
         console.log(`Processed entry ${i}:`, JSON.stringify(entry, null, 2));
-        
-        // Skip if all scores are 0 and there's no series winner
-        const hasScores = entry.games.some(g => g.homeScore > 0 || g.awayScore > 0);
-        if (!hasScores && !entry.seriesWinner) {
-          console.log(`Skipping entry ${i} (no scores and no series winner)`);
-          continue;
-        }
         
         schedule.push(entry);
       } catch (rowError) {
