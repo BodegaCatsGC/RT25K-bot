@@ -196,21 +196,12 @@ async function getSchedule(options = {}) {
         
         // Process row with null/undefined handling
         const entry = {
-          homeTeam: rawData[0] ? String(rawData[0]).trim() : 'N/A',
+          homeTeam: sheetName, // Always use the sheet name as home team
           awayTeam: rawData[1] ? String(rawData[1]).trim() : 'N/A',
           games: [
-            { 
-              homeScore: rawData[2] !== undefined ? Number(rawData[2]) || 0 : 0, 
-              awayScore: rawData[3] !== undefined ? Number(rawData[3]) || 0 : 0
-            },
-            { 
-              homeScore: rawData[4] !== undefined ? Number(rawData[4]) || 0 : 0, 
-              awayScore: rawData[5] !== undefined ? Number(rawData[5]) || 0 : 0
-            },
-            { 
-              homeScore: rawData[6] !== undefined ? Number(rawData[6]) || 0 : 0, 
-              awayScore: rawData[7] !== undefined ? Number(rawData[7]) || 0 : 0
-            }
+            { homeScore: rawData[2] !== undefined ? Number(rawData[2]) || 0 : 0, awayScore: rawData[3] !== undefined ? Number(rawData[3]) || 0 : 0 },
+            { homeScore: rawData[4] !== undefined ? Number(rawData[4]) || 0 : 0, awayScore: rawData[5] !== undefined ? Number(rawData[5]) || 0 : 0 },
+            { homeScore: rawData[6] !== undefined ? Number(rawData[6]) || 0 : 0, awayScore: rawData[7] !== undefined ? Number(rawData[7]) || 0 : 0 }
           ],
           seriesWinner: rawData[8] ? String(rawData[8]).trim() : null
         };
