@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  rt25k-bot:
+    build: .
+    container_name: rt25k-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Persist node_modules to avoid permission issues
+      - ./node_modules:/usr/src/app/node_modules
+      # Mount Google Auth credentials (adjust paths as needed)
+      - ./credentials.json:/usr/src/app/credentials.json:ro
+      # Mount the directory containing token.json (if exists)
+      - ./.credentials:/root/.credentials
+    # Uncomment and modify if you need to expose any ports
+    # ports:
+    #   - "3000:3000"
