@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Discord.js Command and Event Handler for RT25K",
   "main": "src/index.js",
-  "type": "module",
   "scripts": {
     "start": "node src/index.js",
     "register": "node src/deploy-commands.js",
