@@ -3,19 +3,22 @@ const { JWT } = require('google-auth-library');
 require('dotenv').config();
 
 // Validate required environment variables
-const REQUIRED_ENV_VARS = ['GOOGLE_SHEETS_SPREADSHEET_ID'];
+const REQUIRED_ENV_VARS = [
+  'GOOGLE_SHEETS_SPREADSHEET_ID',
+  'GOOGLE_CREDENTIALS'
+];
 const MISSING_ENV_VARS = REQUIRED_ENV_VARS.filter(varName => !process.env[varName]);
 
 if (MISSING_ENV_VARS.length > 0) {
   throw new Error(`Missing required environment variables: ${MISSING_ENV_VARS.join(', ')}`);
 }
 
-// Load service account credentials
+// Parse service account from environment variable
 let serviceAccount;
 try {
-  serviceAccount = require('../../service-account.json');
+  serviceAccount = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 } catch (error) {
-  throw new Error('Failed to load service account credentials. Make sure service-account.json exists in the root directory.');
+  throw new Error('Failed to parse GOOGLE_CREDENTIALS from environment variables. Make sure it contains valid JSON.');
 }
 
 // Create a JWT client for authentication
