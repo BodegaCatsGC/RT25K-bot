@@ -27,16 +27,11 @@ async function getStandings() {
     // Get all rows
     const rows = await sheet.getRows();
     
-    // Map the rows to the expected format
-    const standings = rows.map((row, index) => ({
-      rank: parseInt(row.position || index + 1, 10),
-      team: row.team || '',
-      points: parseInt(row.total_points || 0, 10),
-      wins: parseInt(row.wins || 0, 10),
-      losses: parseInt(row.losses || 0, 10),
-      // Add any additional fields from your sheet
-      ...(row.games_played && { gamesPlayed: parseInt(row.games_played, 10) }),
-      ...(row.win_percentage && { winPercentage: parseFloat(row.win_percentage) })
+    // Map the rows to include position, name, and total points
+    const standings = rows.map(row => ({
+      position: row.Position, // Assuming a column named 'Position'
+      name: row.Name,         // Assuming a column named 'Name'
+      totalPoints: row['Total Points'] // Assuming a column named 'Total Points'
     }));
     
     return standings;

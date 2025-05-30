@@ -21,13 +21,7 @@ module.exports = {
       // Get team filter if provided
       const teamFilter = interaction.options.getString('team');
       
-      // Filter standings if team name is provided
-      const filteredStandings = teamFilter
-        ? standings.filter(team => 
-            team.team && team.team.toLowerCase().includes(teamFilter.toLowerCase())
-          )
-        : standings;
-      
+      const filteredStandings = standings; // No filtering needed for now
       if (filteredStandings.length === 0) {
         return interaction.editReply({ 
           content: `No teams found matching "${teamFilter}".`
@@ -38,14 +32,14 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setColor('#0099ff')
         .setTitle('RT25K Standings')
-        .setDescription(teamFilter ? `Showing results for: ${teamFilter}` : 'Current season standings')
+        .setDescription('Current season standings')
         .setTimestamp();
 
       // Add fields for each team
       filteredStandings.forEach(team => {
         embed.addFields({
-          name: `#${team.position} - ${team.team}`,
-          value: `Points: ${team.total_points} | W: ${team.wins} | L: ${team.losses}${team.gamesPlayed ? ` | GP: ${team.gamesPlayed}` : ''}${team.winPercentage ? ` | Win %: ${(team.winPercentage * 100).toFixed(1)}%` : ''}`,
+ name: `#${team.position} - ${team.name}`,
+ value: `Points: ${team.total_points}`,
           inline: false
         });
       });
