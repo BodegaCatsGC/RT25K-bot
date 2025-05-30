@@ -1,24 +1,35 @@
-# Use the official Node.js 18 image as the base
-FROM node:18-alpine
+# Use the official Node.js 20 image as the base
+FROM node:20-alpine
 
-# Create app directory
+# Install build dependencies
+RUN apk add --no-cache git python3 make g++
+
+# Create app directory and set proper permissions
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json
+# Copy package files
 COPY package*.json ./
 
 
-# Install dependencies
-RUN npm ci --only=production
+# Install production dependencies
+RUN npm ci --only=production && \
+    npm cache clean --force
 
-# Bundle app source
-COPY . .
+# Copy source files and other necessary files
+COPY src/ ./src/
+COPY .env* ./
+COPY botconfig/ ./botconfig/
 
-# Create directory for Google Auth credentials
-RUN mkdir -p /root/.credentials
+# Create directory for Google Auth credentials and set permissions
+RUN mkdir -p /usr/src/app/.credentials && \
+    chown -R node:node /usr/src/app
 
-# Expose the port the app runs on (if needed)
-# EXPOSE 3000
+# Switch to non-root user for security
+USER node
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD node -e "require('node:http').get('http://localhost:3000/health', (res) => { if (res.statusCode !== 200) throw new Error() })" || exit 1
 
 # Command to run the application
-CMD [ "npm", "start" ]
+CMD [ "node", "src/index.js" ]

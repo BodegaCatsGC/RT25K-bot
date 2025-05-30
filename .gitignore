@@ -9,6 +9,7 @@ dist
 .env.dev
 .secrets
 .env.text
+.env.txt
 
 # Service account
 service-account.json

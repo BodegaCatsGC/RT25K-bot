@@ -1,29 +1,43 @@
-version: '3.8'
-
 services:
   rt25k-bot:
-    build: .
+    build:
+      context: .
     container_name: rt25k-bot
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      # Other non-sensitive environment variables
       - PREFIX=!
       - PORT=3000
+      # Mount sensitive data as environment variables from secrets
+      - DISCORD_TOKEN_FILE=/run/secrets/discord_token
+      - CLIENT_ID_FILE=/run/secrets/client_id
+      - APPLICATION_ID_FILE=/run/secrets/application_id
+      - GOOGLE_CREDENTIALS_FILE=/run/secrets/google_credentials
     secrets:
       - discord_token
       - client_id
       - application_id
       - google_credentials
     volumes:
-      # Persist node_modules to avoid permission issues
-      - ./node_modules:/usr/src/app/node_modules
-      # Mount the directory containing token.json (if exists)
-      - ./.credentials:/root/.credentials
-    # Uncomment and modify if you need to expose any ports
-    # ports:
-    #   - "3000:3000"
+      # Mount credentials directory with proper permissions
+      - ./.credentials:/usr/src/app/.credentials
+      # Mount logs directory if you have persistent logs
+      # - ./logs:/usr/src/app/logs
+    # Healthcheck configuration
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('node:http').get('http://localhost:3000/health', (res) => { if (res.statusCode !== 200) throw new Error() })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
+# Docker secrets configuration
 secrets:
   discord_token:
     file: ./.secrets/DISCORD_TOKEN
