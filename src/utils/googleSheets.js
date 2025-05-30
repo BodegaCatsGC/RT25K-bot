@@ -148,7 +148,125 @@ async function getAvailableSheets() {
   }
 }
 
+/**
+ * Fetches schedule data from a team's sheet in Google Sheets
+ * @param {Object} [options] - Configuration options
+ * @param {string} [options.sheetName] - Name of the team's worksheet
+ * @returns {Promise<Array>} Array of scheduled games with N/A for missing data
+ */
+async function getSchedule(options = {}) {
+  const { sheetName = 'Schedule' } = options;
+
+  console.log(`Fetching schedule from sheet: ${sheetName}`);
+  
+  try {
+    const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEETS_SPREADSHEET_ID, jwtClient);
+    await doc.loadInfo();
+    
+    console.log(`Available sheets:`, Object.keys(doc.sheetsByTitle));
+    
+    const sheet = doc.sheetsByTitle[sheetName];
+    if (!sheet) {
+      console.error(`Sheet "${sheetName}" not found in the spreadsheet`);
+      return [];
+    }
+    
+    console.log(`Found sheet "${sheetName}", loading rows...`);
+    const rows = await sheet.getRows();
+    console.log(`Processing ${rows.length} rows from "${sheetName}"`);
+    
+    const schedule = [];
+    
+    for (let i = 0; i < rows.length; i++) {
+      try {
+        const row = rows[i];
+        const rawData = row._rawData || [];
+        
+        // Skip header row
+        if (i === 0) {
+          console.log('Skipping header row');
+          continue;
+        }
+        
+        // Skip rows where home and away team columns are empty
+        if (!rawData[0] && !rawData[1]) {
+          console.log(`Skipping row ${i} (missing teams)`);
+          continue;
+        }
+        
+        // Process row with null/undefined handling
+        const entry = {
+          homeTeam: rawData[0] ? String(rawData[0]).trim() : 'N/A',
+          awayTeam: rawData[1] ? String(rawData[1]).trim() : 'N/A',
+          games: [
+            { 
+              homeScore: rawData[2] !== undefined ? Number(rawData[2]) || 0 : 0, 
+              awayScore: rawData[3] !== undefined ? Number(rawData[3]) || 0 : 0
+            },
+            { 
+              homeScore: rawData[4] !== undefined ? Number(rawData[4]) || 0 : 0, 
+              awayScore: rawData[5] !== undefined ? Number(rawData[5]) || 0 : 0
+            },
+            { 
+              homeScore: rawData[6] !== undefined ? Number(rawData[6]) || 0 : 0, 
+              awayScore: rawData[7] !== undefined ? Number(rawData[7]) || 0 : 0
+            }
+          ],
+          seriesWinner: rawData[8] ? String(rawData[8]).trim() : null
+        };
+        
+        // Calculate series score and determine winner if there are any played games
+        const playedGames = entry.games.filter(g => g.homeScore > 0 || g.awayScore > 0);
+        if (playedGames.length > 0) {
+          let homeWins = 0;
+          let awayWins = 0;
+          
+          playedGames.forEach(game => {
+            if (game.homeScore > game.awayScore) {
+              homeWins++;
+            } else if (game.awayScore > game.homeScore) {
+              awayWins++;
+            }
+          });
+          
+          entry.seriesScore = `${homeWins}-${awayWins}`;
+          
+          // Determine series winner (first to 2+ wins)
+          if (homeWins >= 2) {
+            entry.seriesWinner = entry.homeTeam;
+          } else if (awayWins >= 2) {
+            entry.seriesWinner = entry.awayTeam;
+          }
+        } else {
+          entry.seriesScore = '0-0';
+        }
+        
+        console.log(`Processed entry ${i}:`, JSON.stringify(entry, null, 2));
+        
+        // Skip if all scores are 0 and there's no series winner
+        const hasScores = entry.games.some(g => g.homeScore > 0 || g.awayScore > 0);
+        if (!hasScores && !entry.seriesWinner) {
+          console.log(`Skipping entry ${i} (no scores and no series winner)`);
+          continue;
+        }
+        
+        schedule.push(entry);
+      } catch (rowError) {
+        console.error(`Error processing row ${i} in sheet ${sheetName}:`, rowError);
+        continue;
+      }
+    }
+    
+    console.log(`Successfully processed ${schedule.length} games from "${sheetName}"`);
+    return schedule;
+  } catch (error) {
+    console.error('Error in getSchedule:', error);
+    throw new Error(`Failed to fetch schedule from sheet "${sheetName}": ${error.message}`);
+  }
+}
+
 module.exports = {
   getStandings,
-  getAvailableSheets
+  getAvailableSheets,
+  getSchedule
 };
