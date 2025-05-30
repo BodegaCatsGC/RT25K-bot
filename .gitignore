@@ -7,7 +7,19 @@ dist
 # Environment variables
 .env
 .env.dev
+
+# Service account
 service-account.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
 
 # Logs
 logs
@@ -29,3 +41,8 @@ pids
 # OS files
 .DS_Store
 Thumbs.db
+
+# NPM
+node_modules
+package-lock.json
+yarn.lock

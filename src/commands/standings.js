@@ -20,8 +20,12 @@ module.exports = {
       
       // Get team filter if provided
       const teamFilter = interaction.options.getString('team');
-      
-      const filteredStandings = standings; // No filtering needed for now
+      let filteredStandings = standings;
+
+      if (teamFilter) {
+        filteredStandings = standings.filter(team => team.name && team.name.toLowerCase().includes(teamFilter.toLowerCase()));
+      }
+
       if (filteredStandings.length === 0) {
         return interaction.editReply({ 
           content: `No teams found matching "${teamFilter}".`
@@ -35,14 +39,40 @@ module.exports = {
         .setDescription('Current season standings')
         .setTimestamp();
 
-      // Add fields for each team
-      filteredStandings.forEach(team => {
+      const MAX_FIELD_LENGTH = 1024;
+      const header = '```\n#  Team                 Pts\n---------------------------\n';
+      const footer = '```';
+      let currentStandingsText = header;
+      let fieldCount = 0;
+
+      for (let i = 0; i < filteredStandings.length; i++) {
+        const team = filteredStandings[i];
+        const teamNameString = team.name || 'N/A';
+        const teamName = teamNameString.length > 15 ? teamNameString.substring(0, 12) + '...' : teamNameString.padEnd(15);
+        const teamLine = `${String(team.position || team.rank || i + 1).padEnd(2)} ${teamName} ${String(team.totalPoints || 0).padStart(3)}\n`;
+
+        if (currentStandingsText.length + teamLine.length + footer.length > MAX_FIELD_LENGTH) {
+          currentStandingsText += footer;
+          embed.addFields({
+            name: fieldCount === 0 ? 'Standings' : 'Standings (cont.)',
+            value: currentStandingsText,
+            inline: false
+          });
+          currentStandingsText = header;
+          fieldCount++;
+        }
+        currentStandingsText += teamLine;
+      }
+
+      // Add any remaining standings text
+      if (currentStandingsText.length > header.length) {
+        currentStandingsText += footer;
         embed.addFields({
- name: `#${team.position} - ${team.name}`,
- value: `Points: ${team.total_points}`,
+          name: fieldCount === 0 ? 'Standings' : 'Standings (cont.)',
+          value: currentStandingsText,
           inline: false
         });
-      });
+      }
 
       // Send the embed
       await interaction.editReply({ embeds: [embed] });
