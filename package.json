@@ -4,13 +4,14 @@
   "description": "Discord.js Command and Event Handler for RT25K",
   "main": "dist/main.js",
   "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/index.js",
     "build": "tsc",
-    "start": "node dist/main.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "register": "node src/deploy-commands.js",
+    "dev": "nodemon src/index.js",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
-    "format": "prettier --write \"src/**/*.ts\"",
-    "register": "ts-node src/utils/registerCommands.ts"
+    "format": "prettier --write \"src/**/*.ts\""
   },
   "author": "Tomato#6966 (original template)",
   "license": "ISC",
