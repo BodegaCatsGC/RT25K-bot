@@ -144,26 +144,36 @@ module.exports = {
       }
 
       // Add upcoming opponents and remaining games
-      const upcomingMatches = schedule.filter(match => 
-        !match.seriesWinner && match.seriesScore !== '1-1'
+      const incompleteSeries = schedule.filter(match => 
+        !match.seriesWinner || match.seriesScore === '1-1'
       );
       
-      if (upcomingMatches.length > 0) {
-        const remainingGames = upcomingMatches.length * 3; // Each series is best of 3
-        const opponents = [...new Set(upcomingMatches.map(match => {
+      if (incompleteSeries.length > 0) {
+        const remainingGames = incompleteSeries.reduce((total, match) => {
+          if (match.seriesScore === '1-1') {
+            return total + 1; // 1 game left in a 1-1 series
+          } else if (match.seriesScore === '0-0') {
+            return total + 3; // No games played yet
+          }
+          return total + (3 - Math.max(
+            match.games.filter(g => g.homeScore > 0 || g.awayScore > 0).length,
+            3 - match.games.filter(g => g.homeScore === 0 && g.awayScore === 0).length
+          ));
+        }, 0);
+        
+        const opponents = [...new Set(incompleteSeries.map(match => {
           const isHome = match.homeTeam.toLowerCase() === teamFilter.toLowerCase();
           return isHome ? match.awayTeam : match.homeTeam;
         }))];
         
-        embed.addFields({
-          name: 'Upcoming Opponents',
-          value: `${opponents.join(', ')}`,
-          inline: false
-        });
+        const remainingText = [
+          `**${remainingGames}** game${remainingGames !== 1 ? 's' : ''} remaining`,
+          `(${incompleteSeries.length} ${incompleteSeries.length === 1 ? 'series' : 'series'})`
+        ].join(' ');
         
         embed.addFields({
-          name: 'Remaining Games',
-          value: `**${remainingGames}** games left (${upcomingMatches.length} series)`,
+          name: 'Incomplete Series',
+          value: `${opponents.join(', ')}\n${remainingText}`,
           inline: false
         });
       }
