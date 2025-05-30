@@ -8,6 +8,7 @@ A Discord bot for RT25K with Google Sheets integration for real-time standings.
 - Command and event handler system
 - Slash commands support
 - Google Sheets integration for real-time standings
+- Challonge tournament integration
 - Logging with Winston
 
 ## Setup
@@ -20,6 +21,7 @@ A Discord bot for RT25K with Google Sheets integration for real-time standings.
 3. Copy the `.env` file and fill in your configuration:
    - Set up your Discord bot token and client ID
    - Configure Google Sheets API credentials (see Google Sheets Integration section below)
+   - Configure Challonge API credentials (see Challonge Integration section below)
 4. Start the bot:
    ```bash
    npm start
@@ -57,11 +59,42 @@ Display the current RT25K standings from Google Sheets.
 /standings team:Bodega
 ```
 
+### /tournament
+Display information about a Challonge tournament.
+
+**Options:**
+- `id` (Required): Tournament ID or URL (e.g., `my-tournament` or `mytourney123`)
+
+**Examples:**
+```
+/tournament id:my-tournament
+/tournament id:mytourney123
+```
+
 ### Other Commands
 - `/help` - Shows help information
 - `/ping` - Check if the bot is responsive
 - `/serverinfo` - Display server information
 - `/userinfo` - Display user information
+
+## Challonge Integration
+
+The bot can fetch and display tournament information from Challonge. Here's how to set it up:
+
+1. **Get your Challonge API key**
+   - Log in to your Challonge account
+   - Go to [Account Settings](https://challonge.com/settings/developer)
+   - Under "API Credentials", generate a new API key
+
+2. **Configure Environment Variables**
+   Add this to your `.env` file:
+   ```
+   CHALLONGE_API_KEY=your_challonge_api_key_here
+   ```
+
+3. **Using the Tournament Command**
+   - Use the `/tournament` command with a tournament ID or URL
+   - The bot will display tournament details, participants, and match information
 
 ## Google Sheets Integration
 
@@ -128,5 +161,11 @@ module.exports = {
      - Column 1: Position
      - Column 2: Team Name
      - Column 3: Total Points
+
+3. **Challonge Integration**
+   - Ensure your API key has the correct permissions
+   - Check that the tournament ID or URL is correct
+   - Verify that the tournament is not private or password-protected
+   - If you encounter rate limits, consider implementing caching for the Challonge API responses
 
 ## License
