@@ -16,8 +16,10 @@
   "dependencies": {
     "@discordjs/builders": "^1.7.0",
     "@discordjs/rest": "^2.2.0",
+    "@google-cloud/local-auth": "^3.0.1",
     "discord.js": "^14.14.1",
     "dotenv": "^16.5.0",
+    "google-spreadsheet": "^4.1.4",
     "winston": "^3.17.0"
   },
   "devDependencies": {

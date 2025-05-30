@@ -1,11 +1,13 @@
 # Dependency directories
-node_modules/
+node_modules
 
 # Build output
-dist/
+dist
 
 # Environment variables
 .env
+.env.dev
+service-account.json
 
 # Logs
 logs
