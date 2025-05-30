@@ -7,6 +7,8 @@ dist
 # Environment variables
 .env
 .env.dev
+.secrets
+.env.text
 
 # Service account
 service-account.json
@@ -45,4 +47,4 @@ Thumbs.db
 # NPM
 node_modules
 package-lock.json
-yarn.lock
+yarn.lock.secrets/

@@ -5,15 +5,31 @@ services:
     build: .
     container_name: rt25k-bot
     restart: unless-stopped
-    env_file:
-      - .env
+    environment:
+      - NODE_ENV=production
+      # Other non-sensitive environment variables
+      - PREFIX=!
+      - PORT=3000
+    secrets:
+      - discord_token
+      - client_id
+      - application_id
+      - google_credentials
     volumes:
       # Persist node_modules to avoid permission issues
       - ./node_modules:/usr/src/app/node_modules
-      # Mount Google Auth credentials (adjust paths as needed)
-      - ./credentials.json:/usr/src/app/credentials.json:ro
       # Mount the directory containing token.json (if exists)
       - ./.credentials:/root/.credentials
     # Uncomment and modify if you need to expose any ports
     # ports:
     #   - "3000:3000"
+
+secrets:
+  discord_token:
+    file: ./.secrets/DISCORD_TOKEN
+  client_id:
+    file: ./.secrets/CLIENT_ID
+  application_id:
+    file: ./.secrets/APPLICATION_ID
+  google_credentials:
+    file: ./.secrets/GOOGLE_CREDENTIALS

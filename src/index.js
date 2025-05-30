@@ -7,6 +7,29 @@ const { createLogger, format, transports } = require('winston');
 // Load environment variables
 config();
 
+// Read secrets from files if they exist (Docker Swarm/Secrets)
+const readSecret = (secretPath) => {
+  try {
+    return fs.readFileSync(secretPath, 'utf8').trim();
+  } catch (error) {
+    // Fallback to environment variable if secret file doesn't exist
+    const envVarName = secretPath.split('/').pop().toUpperCase();
+    return process.env[envVarName];
+  }
+};
+
+// Load secrets with fallback to environment variables
+const DISCORD_TOKEN = readSecret('/run/secrets/discord_token') || process.env.DISCORD_TOKEN;
+const CLIENT_ID = readSecret('/run/secrets/client_id') || process.env.CLIENT_ID;
+const APPLICATION_ID = readSecret('/run/secrets/application_id') || process.env.APPLICATION_ID;
+const GOOGLE_CREDENTIALS = readSecret('/run/secrets/google_credentials') || process.env.GOOGLE_CREDENTIALS;
+
+// Update process.env with the resolved values
+if (DISCORD_TOKEN) process.env.DISCORD_TOKEN = DISCORD_TOKEN;
+if (CLIENT_ID) process.env.CLIENT_ID = CLIENT_ID;
+if (APPLICATION_ID) process.env.APPLICATION_ID = APPLICATION_ID;
+if (GOOGLE_CREDENTIALS) process.env.GOOGLE_CREDENTIALS = GOOGLE_CREDENTIALS;
+
 // Setup logger
 const logger = createLogger({
   level: 'info',
@@ -106,4 +129,13 @@ process.on('uncaughtException', (err) => {
 });
 
 // Login to Discord with your client's token
-client.login(process.env.DISCORD_TOKEN);
+if (!process.env.DISCORD_TOKEN) {
+  logger.error('No Discord token found. Please set the DISCORD_TOKEN environment variable or secret.');
+  process.exit(1);
+}
+
+client.login(process.env.DISCORD_TOKEN)
+  .catch(error => {
+    logger.error('Failed to login to Discord:', error);
+    process.exit(1);
+  });
