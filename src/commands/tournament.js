@@ -13,7 +13,7 @@ module.exports = {
     .addStringOption(option =>
       option.setName('id')
         .setDescription('Tournament ID or URL (e.g., mytourney123 or challonge.com/mytourney123)')
-        .setRequired(true)),
+        .setRequired(false)),
 
   async execute(interaction) {
     await interaction.deferReply();
@@ -25,6 +25,25 @@ module.exports = {
 
     const tournamentId = interaction.options.getString('id');
     
+    // If no ID is provided, show the RT25K Challonge URL
+    if (!tournamentId) {
+      const embed = new EmbedBuilder()
+        .setColor(0x0099FF)
+        .setTitle('RT25K Challonge Bracket')
+        .setDescription('Check out the current standings and matches on Challonge!')
+        .setURL('https://rt25k.challonge.com/final_drive')
+        .addFields(
+          { name: 'Direct Link', value: 'https://rt25k.challonge.com/final_drive' }
+        )
+        .setTimestamp()
+        .setFooter({ 
+          text: 'RT25K Bot', 
+          iconURL: interaction.client.user?.displayAvatarURL() 
+        });
+      
+      return interaction.editReply({ embeds: [embed] });
+    }
+
     // Log the tournament ID being used
     console.log(`Fetching tournament with ID/URL: ${tournamentId}`);
 

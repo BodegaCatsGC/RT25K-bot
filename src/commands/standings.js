@@ -23,7 +23,7 @@ module.exports = {
       let filteredStandings = standings;
 
       if (teamFilter) {
-        filteredStandings = standings.filter(team => team.name && team.name.toLowerCase().includes(teamFilter.toLowerCase()));
+        filteredStandings = standings.filter(team => team.team && team.team.toLowerCase().includes(teamFilter.toLowerCase()));
       }
 
       if (filteredStandings.length === 0) {
@@ -47,7 +47,7 @@ module.exports = {
 
       for (let i = 0; i < filteredStandings.length; i++) {
         const team = filteredStandings[i];
-        const teamNameString = team.name || 'N/A';
+        const teamNameString = team.team || 'N/A';
         const teamName = teamNameString.length > 15 ? teamNameString.substring(0, 12) + '...' : teamNameString.padEnd(15);
         const teamLine = `${String(team.position || team.rank || i + 1).padEnd(2)} ${teamName} ${String(team.totalPoints || 0).padStart(3)}\n`;
 
