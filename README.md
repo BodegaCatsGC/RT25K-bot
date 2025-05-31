@@ -1,12 +1,10 @@
 # RT25K Discord Bot
 
-A modern TypeScript Discord bot for RT25K with Google Sheets integration for real-time standings and tournament management.
+A modern Discord bot for RT25K with Google Sheets integration for real-time standings and tournament management.
 
 ## ✨ Features
 
-- **TypeScript** for type safety and better developer experience
-- **Modern Discord.js v14** with full TypeScript support
-- **Slash Commands** with autocomplete and proper type checking
+- **Modern Discord.js v14** with slash commands support
 - **Google Sheets Integration** for real-time standings
 - **Challonge Tournament Integration** for tournament management
 - **Docker Support** for easy deployment
@@ -16,10 +14,10 @@ A modern TypeScript Discord bot for RT25K with Google Sheets integration for rea
 ## 🚀 Setup
 
 ### Prerequisites
-- Node.js 18.0.0 or higher
+- Node.js 16.9.0 or higher (LTS recommended)
 - Docker (optional, for containerized deployment)
 - A Discord bot token from the [Discord Developer Portal](https://discord.com/developers/applications)
-- Google Cloud Project with Google Sheets API enabled
+- Google Cloud Project with Google Sheets API enabled (for standings functionality)
 - Challonge API key (optional, for tournament features)
 
 ### Local Development
@@ -62,12 +60,9 @@ npm start
 
 ### Available Scripts
 
-- `npm run dev` - Start development server with hot-reload
-- `npm run build` - Compile TypeScript to JavaScript
+- `npm run dev` - Start development server with nodemon
 - `npm start` - Start production server
 - `npm run register` - Register slash commands with Discord
-- `npm run lint` - Run ESLint
-- `npm run format` - Format code with Prettier
 
 ### Project Structure
 
@@ -76,10 +71,10 @@ src/
 ├── commands/       # Slash command handlers
 ├── events/         # Discord event handlers
 ├── utils/          # Utility functions
-│   ├── googleSheets.ts  # Google Sheets integration
-│   └── logger.ts        # Logging configuration
-├── deploy-commands.ts    # Command deployment script
-└── index.ts              # Main application entry point
+│   ├── googleSheets.js  # Google Sheets integration
+│   └── logger.js        # Logging configuration
+├── deploy-commands.js   # Command deployment script
+└── index.js             # Main application entry point
 ```
 
 ## Project Structure
@@ -240,48 +235,45 @@ The container includes a healthcheck that verifies the bot is connected to Disco
 
 ## 🛠 Adding Commands
 
-Create a new TypeScript file in the `src/commands/` directory with the following structure:
+Create a new JavaScript file in the `src/commands/` directory with the following structure:
 
-```typescript
-import { SlashCommandBuilder } from '@discordjs/builders';
-import { CommandInteraction } from 'discord.js';
-import { logger } from '../utils/logger';
+```javascript
+const { SlashCommandBuilder } = require('@discordjs/builders');
+const { logger } = require('../utils/logger');
 
-export const data = new SlashCommandBuilder()
-  .setName('commandname')
-  .setDescription('Command description')
-  // Add options if needed
-  .addStringOption(option =>
-    option
-      .setName('optionname')
-      .setDescription('Option description')
-      .setRequired(false)
-  );
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('commandname')
+    .setDescription('Command description')
+    // Add options if needed
+    .addStringOption(option =>
+      option
+        .setName('optionname')
+        .setDescription('Option description')
+        .setRequired(false)
+    ),
 
-export async function execute(interaction: CommandInteraction) {
-  try {
-    // Command code here
-    await interaction.reply('Command response');
-  } catch (error) {
-    logger.error('Error in commandname command:', error);
-    if (!interaction.replied) {
-      await interaction.reply({ 
-        content: 'There was an error executing this command!', 
-        ephemeral: true 
-      });
+  async execute(interaction) {
+    try {
+      // Command code here
+      await interaction.reply('Command response');
+    } catch (error) {
+      logger.error('Error in commandname command:', error);
+      if (!interaction.replied) {
+        await interaction.reply({ 
+          content: 'There was an error executing this command!', 
+          ephemeral: true 
+        });
+      }
     }
   }
-}
+};
 ```
 
-### Type Safety
-All commands automatically get TypeScript types from the command builder. For example:
-
-```typescript
-// For options, you can define the expected type:
-const option = interaction.options.getString('optionname', false);
-// TypeScript knows `option` is string | null
-```
+### Command Structure
+- Each command is a module that exports a `data` property (the command definition) and an `execute` function
+- The `data` property uses `SlashCommandBuilder` to define the command and its options
+- The `execute` function contains the command's logic and is called when the command is used
 
 ## 🚨 Troubleshooting
 
