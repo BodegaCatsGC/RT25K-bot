@@ -10,11 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: -1
+          fetch-depth: 0
           
-      - name: Calculate next semantic version
-        id: version
-        
+      - name: Git Semantic Version
         uses: PaulHatch/semantic-version@v5.4.0
         with:
           tag_prefix: "v"
@@ -22,11 +20,11 @@ jobs:
           major_regexp_flags: ""
           minor_pattern: "(MINOR)"
           minor_regexp_flags: ""
-          version_format: "${major}.${minor}.${patch}-prerelease${increment}"
+          version_format: "${major}.${minor}.${patch}"
           bump_each_commit: true
           bump_each_commit_patch_pattern: ""
           search_commit_body: true
-          enable_prerelease_mode: true
+          enable_prerelease_mode: false
           
       - name: Update CHANGELOG.md
         uses: BobAnkh/auto-generate-changelog@v1.2.5
