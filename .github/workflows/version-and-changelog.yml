@@ -13,7 +13,7 @@ jobs:
           fetch-depth: -1
           
       - name: Calculate next semantic version
-        id: version_a
+        id: version
         
         uses: PaulHatch/semantic-version@v5.4.0
         with:
@@ -39,22 +39,6 @@ jobs:
           REGENERATE_COUNT: -1
           DEFAULT_SCOPE: 'general'
         
-      - name: Calculate next semantic version
-        id: version_b
-        
-        uses: PaulHatch/semantic-version@v5.4.0
-        with:
-          tag_prefix: "v"
-          major_pattern: "(MAJOR)"
-          major_regexp_flags: ""
-          minor_pattern: "(MINOR)"
-          minor_regexp_flags: ""
-          version_format: "${major}.${minor}.${patch}-prerelease${increment}"
-          bump_each_commit: true
-          bump_each_commit_patch_pattern: ""
-          search_commit_body: false
-          enable_prerelease_mode: true
-      
       - name: Git tag and push
         run: |
           git config --global user.email "bodegacatsgc@gmail.com"
