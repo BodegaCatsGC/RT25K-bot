@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: -1
           
       - name: Git Semantic Version
         uses: PaulHatch/semantic-version@v5.4.0
@@ -36,7 +36,7 @@ jobs:
           TYPE: 'feat:Features,fix:Bug Fixes,docs:Documentation,refactor:Refactors,perf:Performance Improvements, chore: chores'
           REGENERATE_COUNT: 0
           DEFAULT_SCOPE: 'general'
-      
+        
       - name: Git tag and push
         run: |
           git config --global user.email "bodegacatsgc@gmail.com"
@@ -46,4 +46,4 @@ jobs:
           git commit -m "docs(CHANGELOG): update for v${{ steps.version.outputs.version }}" || echo "Nothing to commit"
           fi
           git tag v${{ steps.version.outputs.version }}
-          git push origin Association-Admin-Bot --tags
+          git push origin master --tags
