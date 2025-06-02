@@ -23,15 +23,9 @@ npm run ios
 
 This will start the React Native packager and launch the iOS simulator.
 
-## Running Tests
+## Tests
 
-Run unit tests using React Native's built-in test runner:
-
-```bash
-npm test
-```
-
-This executes Jest tests defined in the `ios` project.
+There are currently no automated tests for the iOS app. The `npm test` command does nothing.
 
 ## Environment
 
