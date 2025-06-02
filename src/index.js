@@ -2,6 +2,7 @@ const { Client, Collection, GatewayIntentBits, Events, ActivityType } = require(
 const { config } = require('dotenv');
 const fs = require('fs');
 const path = require('path');
+const { createServer } = require('node:http');
 const { createLogger, format, transports } = require('winston');
 
 // Load environment variables
@@ -38,6 +39,20 @@ const logger = createLogger({
     format.printf(({ timestamp, level, message }) => `[${timestamp}] ${level.toUpperCase()}: ${message}`)
   ),
   transports: [new transports.Console()],
+});
+
+// Simple HTTP server for health checks
+const PORT = process.env.PORT || 3000;
+createServer((req, res) => {
+  if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('OK');
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+}).listen(PORT, () => {
+  logger.info(`Health check server listening on port ${PORT}`);
 });
 
 // Create a new client instance
