@@ -23,6 +23,16 @@ npm run ios
 
 This will start the React Native packager and launch the iOS simulator.
 
+## Running Tests
+
+Run unit tests using React Native's built-in test runner:
+
+```bash
+npm test
+```
+
+This executes Jest tests defined in the `ios` project.
+
 ## Environment
 
 The UI expects a Discord bot token and optional API keys for Google Sheets and Challonge. Enter these on the login and configuration screens.
