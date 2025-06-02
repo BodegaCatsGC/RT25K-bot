@@ -4,7 +4,7 @@ import { getStandings } from '../api/googleSheets';
 import { getTournament } from '../api/challonge';
 import ConfigScreen from './ConfigScreen';
 
-export default function HomeScreen({ token, config, onLogout }) {
+export default function HomeScreen({ token, config, setConfig, onLogout }) {
   const [output, setOutput] = useState('');
   const [showConfig, setShowConfig] = useState(false);
 
@@ -31,7 +31,7 @@ export default function HomeScreen({ token, config, onLogout }) {
       <ConfigScreen
         onSave={(cfg) => {
           setShowConfig(false);
-          Object.assign(config, cfg);
+          setConfig({ ...config, ...cfg });
         }}
         initial={config}
       />
