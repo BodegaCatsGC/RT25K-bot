@@ -75,10 +75,9 @@ npm start
 ```
 src/
 ├── commands/       # Slash command handlers
-├── events/         # Discord event handlers
 ├── utils/          # Utility functions
 │   ├── googleSheets.js  # Google Sheets integration
-│   └── logger.js        # Logging configuration
+│   └── challonge.js     # Challonge API integration
 ├── deploy-commands.js   # Command deployment script
 └── index.js             # Main application entry point
 ```
@@ -88,9 +87,9 @@ src/
 * `src/` - Source code
 
   * `commands/` - Bot slash commands
-  * `events/` - Event handlers
-  * `handlers/` - Command and event handlers
-  * `utils/` - Utility functions including Google Sheets integration
+  * `utils/` - Helper modules including Google Sheets and Challonge clients
+  * `deploy-commands.js` - Slash command registration script
+  * `index.js` - Bot entry point
 * `service-account.json` - Google Cloud service account credentials (keep this private!)
 * `.env` - Environment variables (keep this private!)
 
