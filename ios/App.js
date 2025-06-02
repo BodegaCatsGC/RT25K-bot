@@ -21,6 +21,7 @@ export default function App() {
       <HomeScreen
         token={token}
         config={config}
+        setConfig={setConfig}
         onLogout={() => {
           setConfig(null);
           setToken(null);
