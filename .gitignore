@@ -15,16 +15,6 @@ dist
 service-account.json
 
 # Logs
-*.log
-npm-debug.log*
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Logs
 logs
 *.log
 npm-debug.log*
@@ -46,7 +36,6 @@ pids
 Thumbs.db
 
 # NPM
-node_modules
 package-lock.json
 yarn.lock.secrets/
 
