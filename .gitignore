@@ -49,3 +49,6 @@ Thumbs.db
 node_modules
 package-lock.json
 yarn.lock.secrets/
+
+# iOS project
+ios/node_modules
