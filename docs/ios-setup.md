@@ -1,31 +1,18 @@
 # iOS Setup
 
-This folder contains a lightweight React Native project used for testing RT25K bot functionality on iOS. The project lives in `ios/` at the repository root.
+This folder now contains a lightweight SwiftUI application used for testing RT25K bot functionality on iOS. The project lives in `ios/` at the repository root.
 
 ## Prerequisites
 
-- Node.js 18+
-- Xcode with command line tools
-- `react-native` CLI (`npx react-native --version`)
-
-## Install Dependencies
-
-```bash
-cd ios
-npm install
-```
+- Xcode 14 or higher
 
 ## Running on Simulator
 
-```bash
-npm run ios
-```
-
-This will start the React Native packager and launch the iOS simulator.
+Open the `ios` folder in Xcode and run the `RT25KApp` scheme on a simulator or device. The app is self-contained and does not require any package manager setup.
 
 ## Tests
 
-There are currently no automated tests for the iOS app. The `npm test` command does nothing.
+There are currently no automated tests for the iOS app.
 
 ## Environment
 
@@ -36,4 +23,3 @@ The UI expects a Discord bot token and optional API keys for Google Sheets and C
 1. Open `ios` in Xcode.
 2. Select your signing team and adjust bundle identifiers if needed.
 3. Build or archive the project via Xcode.
-
