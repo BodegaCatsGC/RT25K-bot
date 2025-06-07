@@ -18,72 +18,112 @@ class RT25KSimulator {
    * @param {Array} schedule - Array of matches from getSchedule()
    */
   constructor(standings, schedule) {
+    if (!standings || !Array.isArray(standings)) {
+      throw new Error('Standings must be a non-empty array');
+    }
+    
+    if (!schedule || !Array.isArray(schedule)) {
+      console.warn('No schedule provided or invalid schedule format, using empty array');
+      schedule = [];
+    }
+    
     this.standings = standings;
     this.schedule = schedule;
     this.teamData = this.prepareTeamData(standings);
     this.matches = this.prepareMatches(schedule);
+    
+    console.log(`Simulator initialized with ${Object.keys(this.teamData).length} teams and ${this.matches.length} matches`);
   }
 
   prepareTeamData(standings) {
     const teamData = {};
     
-    for (const team of standings) {
-      if (!team || !team.team) continue;
-      
-      // Calculate base power from total points
-      const basePower = (team.total_points || 0) * BASE_POWER_MULTIPLIER;
-      
-      // Get activity multiplier (default to 'active' if not specified)
-      const activityLevel = (team.activity_level || 'active').toLowerCase();
-      const activityMultiplier = ACTIVITY_MULTIPLIERS[activityLevel] || ACTIVITY_MULTIPLIERS.active;
-      
-      teamData[team.team] = {
-        power: Math.max(basePower, MIN_POWER),  // Ensure minimum power
-        activity: activityMultiplier,
-        group: team.group || 'DefaultGroup',
-        pointDifferential: team.point_differential || 0,
-        originalData: team
-      };
-      
-      console.log(`Team ${team.team} - Power: ${teamData[team.team].power}, Activity: ${activityLevel}`);
+    if (!standings || !Array.isArray(standings)) {
+      console.error('Invalid standings data in prepareTeamData:', standings);
+      return teamData;
     }
     
+    console.log(`Preparing team data from ${standings.length} standings entries`);
+    
+    for (const team of standings) {
+      try {
+        if (!team || !team.team) {
+          console.warn('Skipping invalid team entry:', team);
+          continue;
+        }
+        
+        const activityLevel = team.activity_level?.toLowerCase() || 'inactive';
+        const activityMultiplier = ACTIVITY_MULTIPLIERS[activityLevel] || ACTIVITY_MULTIPLIERS.inactive;
+        
+        teamData[team.team] = {
+          name: team.team,
+          group: team.group || 'DefaultGroup',
+          points: Number(team.total_points) || 0,
+          activity: activityLevel,
+          power: Math.max(
+            MIN_POWER,
+            (Number(team.total_points) || 0) * BASE_POWER_MULTIPLIER * activityMultiplier
+          )
+        };
+        
+        console.log(`Added team: ${team.team} (${activityLevel}, power: ${teamData[team.team].power.toFixed(2)})`);
+      } catch (error) {
+        console.error('Error processing team:', team, error);
+      }
+    }
+    
+    console.log(`Prepared data for ${Object.keys(teamData).length} teams`);
     return teamData;
   }
 
   prepareMatches(schedule) {
     const matches = [];
     
-    for (const match of schedule) {
-      if (!match.homeTeam || !match.awayTeam) continue;
-      
-      // Check if the match is completed (has a winner or any games played)
-      const hasPlayedGames = match.games && match.games.some(g => g.homeScore > 0 || g.awayScore > 0);
-      const isCompleted = match.seriesWinner && match.seriesWinner !== 'N/A' || hasPlayedGames;
-      
-      // Calculate total scores from games (if any)
-      let score1 = 0;
-      let score2 = 0;
-      
-      if (match.games && match.games.length > 0) {
-        match.games.forEach(game => {
-          if (game.homeScore > game.awayScore) score1++;
-          else if (game.awayScore > game.homeScore) score2++;
-        });
-      }
-      
-      matches.push({
-        team1: match.homeTeam,
-        team2: match.awayTeam,
-        score1: score1,
-        score2: score2,
-        group: 'DefaultGroup',
-        completed: isCompleted,
-        originalData: match
-      });
+    if (!schedule || !Array.isArray(schedule)) {
+      console.warn('Invalid schedule data in prepareMatches, using empty array');
+      return matches;
     }
     
-    console.log(`Prepared ${matches.length} matches (${matches.filter(m => !m.completed).length} remaining to simulate)`);
+    console.log(`Preparing ${schedule.length} matches`);
+    
+    for (const match of schedule) {
+      try {
+        if (!match || !match.homeTeam || !match.awayTeam) {
+          console.warn('Skipping invalid match:', match);
+          continue;
+        }
+        
+        // Check if the match is completed (has a winner or any games played)
+        const hasPlayedGames = match.games && match.games.some(g => g.homeScore > 0 || g.awayScore > 0);
+        const isCompleted = match.seriesWinner && match.seriesWinner !== 'N/A' || hasPlayedGames;
+        
+        // Calculate total scores from games (if any)
+        let score1 = 0;
+        let score2 = 0;
+        
+        if (match.games && Array.isArray(match.games)) {
+          match.games.forEach(game => {
+            if (game.homeScore > game.awayScore) score1++;
+            else if (game.awayScore > game.homeScore) score2++;
+          });
+        }
+        
+        matches.push({
+          team1: match.homeTeam,
+          team2: match.awayTeam,
+          score1: score1,
+          score2: score2,
+          group: 'DefaultGroup',
+          completed: isCompleted,
+          originalData: match
+        });
+        
+      } catch (error) {
+        console.error('Error processing match:', match, error);
+      }
+    }
+    
+    console.log(`Prepared ${matches.length} valid matches (${matches.filter(m => !m.completed).length} remaining to simulate)`);
     return matches;
   }
 
