@@ -1,10 +1,19 @@
 // src/utils/simulation.js
 
-// Activity level multipliers
-const ACTIVITY_MULTIPLIERS = {
-  active: 1.0,    // Full boost for active teams
-  partial: 0.5,   // Half boost for partially active teams
-  inactive: 0.1   // Minimal boost for inactive teams
+// Activity level configuration
+const ACTIVITY_LEVELS = {
+  active: {
+    minGames: 5,    // Teams with 5+ games are considered active
+    multiplier: 1.0  // Full boost for active teams
+  },
+  partial: {
+    minGames: 2,    // Teams with 2-4 games are partially active
+    multiplier: 0.5  // Half boost for partially active teams
+  },
+  inactive: {
+    minGames: 0,    // Teams with 0-1 games are inactive
+    multiplier: 0.1  // Minimal boost for inactive teams
+  }
 };
 
 // Base power calculation parameters
@@ -32,7 +41,58 @@ class RT25KSimulator {
     this.teamData = this.prepareTeamData(standings);
     this.matches = this.prepareMatches(schedule);
     
+    // Calculate games played for each team
+    this.calculateGamesPlayed();
+    
     console.log(`Simulator initialized with ${Object.keys(this.teamData).length} teams and ${this.matches.length} matches`);
+  }
+
+  /**
+   * Calculate how many games each team has played
+   */
+  calculateGamesPlayed() {
+    // Reset game counts
+    Object.values(this.teamData).forEach(team => {
+      team.gamesPlayed = 0;
+    });
+    
+    // Count games for each team
+    for (const match of this.matches) {
+      if (match.completed) {
+        const team1 = this.teamData[match.team1];
+        const team2 = this.teamData[match.team2];
+        
+        if (team1) team1.gamesPlayed += match.score1 + match.score2;
+        if (team2) team2.gamesPlayed += match.score1 + match.score2;
+      }
+    }
+    
+    // Log game counts for debugging
+    Object.entries(this.teamData).forEach(([teamName, team]) => {
+      console.log(`Team ${teamName} has played ${team.gamesPlayed} games`);
+    });
+    
+    // Update activity levels and power based on games played
+    Object.entries(this.teamData).forEach(([teamName, team]) => {
+      team.activity = this.getActivityLevel(team.gamesPlayed);
+      team.power = Math.max(
+        MIN_POWER,
+        (Number(team.points) || 0) * BASE_POWER_MULTIPLIER * ACTIVITY_LEVELS[team.activity].multiplier
+      );
+    });
+  }
+
+  /**
+   * Determine activity level based on games played
+   */
+  getActivityLevel(gamesPlayed) {
+    if (gamesPlayed >= ACTIVITY_LEVELS.active.minGames) {
+      return 'active';
+    } else if (gamesPlayed >= ACTIVITY_LEVELS.partial.minGames) {
+      return 'partial';
+    } else {
+      return 'inactive';
+    }
   }
 
   prepareTeamData(standings) {
@@ -45,6 +105,7 @@ class RT25KSimulator {
     
     console.log(`Preparing team data from ${standings.length} standings entries`);
     
+    // First pass: create team entries with basic info
     for (const team of standings) {
       try {
         if (!team || !team.team) {
@@ -52,21 +113,15 @@ class RT25KSimulator {
           continue;
         }
         
-        const activityLevel = team.activity_level?.toLowerCase() || 'inactive';
-        const activityMultiplier = ACTIVITY_MULTIPLIERS[activityLevel] || ACTIVITY_MULTIPLIERS.inactive;
-        
         teamData[team.team] = {
           name: team.team,
           group: team.group || 'DefaultGroup',
           points: Number(team.total_points) || 0,
-          activity: activityLevel,
-          power: Math.max(
-            MIN_POWER,
-            (Number(team.total_points) || 0) * BASE_POWER_MULTIPLIER * activityMultiplier
-          )
+          gamesPlayed: 0,  // Will be updated in calculateGamesPlayed
+          activity: 'inactive',  // Will be updated based on games played
+          power: MIN_POWER  // Will be updated after games are counted
         };
         
-        console.log(`Added team: ${team.team} (${activityLevel}, power: ${teamData[team.team].power.toFixed(2)})`);
       } catch (error) {
         console.error('Error processing team:', team, error);
       }
