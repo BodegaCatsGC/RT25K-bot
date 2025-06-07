@@ -1,6 +1,6 @@
 // src/commands/simulate.js
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getStandings, getSchedule } = require('../utils/googleSheets');
+const { getStandings, getAvailableSheets, getSchedule } = require('../utils/googleSheets');
 const { RT25KSimulator } = require('../utils/simulation');
 
 module.exports = {
@@ -12,29 +12,58 @@ module.exports = {
     try {
       await interaction.deferReply();
 
-      // Get current standings and schedule using existing utilities
-      const [standings, schedule] = await Promise.all([
-        getStandings(),
-        getSchedule()
-      ]);
+      // Get available sheets to find team schedules
+      const sheets = await getAvailableSheets();
+      const teamSheets = sheets
+        .filter(sheet => !['standings', 'schedule', 'overall', 'template'].includes(sheet.title.toLowerCase()));
 
-      // Check if we have data
+      if (teamSheets.length === 0) {
+        return interaction.editReply('❌ No team sheets found in the spreadsheet.');
+      }
+
+      // Get standings
+      const standings = await getStandings();
       if (!standings || standings.length === 0) {
         return interaction.editReply('❌ Could not load team standings.');
       }
-      if (!schedule || schedule.length === 0) {
-        return interaction.editReply('❌ Could not load match schedule.');
+
+      // Get all matches from all team schedules
+      let allMatches = [];
+      const processedMatches = new Set();
+      
+      for (const sheet of teamSheets) {
+        try {
+          const teamSchedule = await getSchedule({ sheetName: sheet.title });
+          
+          // Filter out duplicates by creating a unique match key
+          for (const match of teamSchedule) {
+            const key = [match.homeTeam, match.awayTeam].sort().join('_');
+            if (!processedMatches.has(key)) {
+              allMatches.push(match);
+              processedMatches.add(key);
+            }
+          }
+        } catch (error) {
+          console.error(`Error processing sheet ${sheet.title}:`, error);
+          // Continue with other sheets even if one fails
+        }
       }
 
+      if (allMatches.length === 0) {
+        return interaction.editReply('❌ No matches found in team schedules.');
+      }
+
+      console.log(`Found ${allMatches.length} unique matches across all team schedules`);
+
       // Initialize simulator with the data
-      const simulator = new RT25KSimulator(standings, schedule);
+      const simulator = new RT25KSimulator(standings, allMatches);
       
       // Run simulation
       const { standings: finalStandings, simulatedMatches } = simulator.simulateRemainingMatches();
 
       // Create embed
       const embed = new EmbedBuilder()
-        .setTitle('� Simulated Match Results')
+        .setTitle(' Simulated Match Results')
         .setColor('#0099ff')
         .setDescription('Results of simulated remaining matches:')
         .setTimestamp();
@@ -75,7 +104,7 @@ module.exports = {
     } catch (error) {
       console.error('Error in simulate command:', error);
       await interaction.editReply({
-        content: '❌ An error occurred while running the simulation. Check the console for details.',
+        content: ' An error occurred while running the simulation. Check the console for details.',
         ephemeral: true
       });
     }
