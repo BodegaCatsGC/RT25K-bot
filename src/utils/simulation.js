@@ -1,7 +1,6 @@
 // src/utils/simulation.js
 
 const DEFAULT_BOOST_FACTOR = 0.2;
-const DEFAULT_BEST_OF_SERIES = 5;
 
 class RT25KSimulator {
   /**
@@ -19,10 +18,13 @@ class RT25KSimulator {
     const teamData = {};
     
     for (const team of standings) {
+      if (!team || !team.team) continue;
+      
       teamData[team.team] = {
-        power: team.points || 0,  // Using points as a proxy for power
-        activity: 1.0,  // Default activity level
-        group: team.group || 'DefaultGroup'
+        power: team.totalPoints || 0,
+        activity: 1.0,
+        group: team.group || 'DefaultGroup',
+        originalData: team
       };
     }
     
@@ -30,16 +32,37 @@ class RT25KSimulator {
   }
 
   prepareMatches(schedule) {
-    return schedule
-      .filter(match => match.team1 && match.team2)
-      .map(match => ({
-        team1: match.team1,
-        team2: match.team2,
-        score1: parseInt(match.score1) || 0,
-        score2: parseInt(match.score2) || 0,
-        group: match.group || 'DefaultGroup',
-        completed: !!match.completed
-      }));
+    const matches = [];
+    
+    for (const match of schedule) {
+      if (!match.homeTeam || !match.awayTeam) continue;
+      
+      // Skip matches that have already been played
+      const isCompleted = match.seriesWinner !== null && match.seriesWinner !== 'N/A';
+      
+      // Calculate total scores from all games
+      let score1 = 0;
+      let score2 = 0;
+      
+      if (match.games && match.games.length > 0) {
+        match.games.forEach(game => {
+          if (game.homeScore > game.awayScore) score1++;
+          else if (game.awayScore > game.homeScore) score2++;
+        });
+      }
+      
+      matches.push({
+        team1: match.homeTeam,
+        team2: match.awayTeam,
+        score1: score1,
+        score2: score2,
+        group: 'DefaultGroup', // Group not available in schedule, use default
+        completed: isCompleted,
+        originalData: match
+      });
+    }
+    
+    return matches;
   }
 
   getAdjustedPower(teamName) {
@@ -56,29 +79,13 @@ class RT25KSimulator {
     return roll < aPower ? teamA : teamB;
   }
 
-  simulateSeries(teamA, teamB) {
-    let scoreA = 0;
-    let scoreB = 0;
-    const requiredWins = Math.ceil(DEFAULT_BEST_OF_SERIES / 2);
-
-    while (scoreA < requiredWins && scoreB < requiredWins) {
-      const winner = this.simulateGame(teamA, teamB);
-      if (winner === teamA) scoreA++;
-      else scoreB++;
-    }
-
-    return {
-      winner: scoreA > scoreB ? teamA : teamB,
-      scoreA,
-      scoreB
-    };
-  }
-
   simulateRemainingMatches() {
     const results = {};
 
     // Initialize group standings
     for (const team of this.standings) {
+      if (!team || !team.team) continue;
+      
       const group = team.group || 'DefaultGroup';
       if (!results[group]) {
         results[group] = [];
@@ -86,13 +93,12 @@ class RT25KSimulator {
       
       results[group].push({
         team: team.team,
-        points: team.points || 0,
-        matchesPlayed: team.matchesPlayed || 0,
-        wins: team.wins || 0,
-        losses: team.losses || 0,
-        roundWins: team.roundWins || 0,
-        roundLosses: team.roundLosses || 0,
-        mapDiff: (team.roundWins || 0) - (team.roundLosses || 0)
+        points: team.totalPoints || 0,
+        wins: 0,  // These will be updated based on matches
+        losses: 0,
+        roundWins: 0,
+        roundLosses: 0,
+        mapDiff: 0
       });
     }
 
@@ -106,13 +112,21 @@ class RT25KSimulator {
     // Simulate remaining matches
     for (const match of this.matches) {
       if (!match.completed) {
-        const { winner, scoreA, scoreB } = this.simulateSeries(match.team1, match.team2);
+        // Simulate a best of 3 series
+        let score1 = 0, score2 = 0;
+        while (score1 < 2 && score2 < 2) {
+          const winner = this.simulateGame(match.team1, match.team2);
+          if (winner === match.team1) score1++;
+          else score2++;
+        }
+        
         const simulatedMatch = {
           ...match,
-          score1: scoreA,
-          score2: scoreB,
+          score1: score1,
+          score2: score2,
           completed: true
         };
+        
         this.updateStandings(results, simulatedMatch);
       }
     }
@@ -127,10 +141,6 @@ class RT25KSimulator {
         const aDiff = a.roundWins - a.roundLosses;
         const bDiff = b.roundWins - b.roundLosses;
         if (aDiff !== bDiff) return bDiff - aDiff;
-        
-        // Then by head-to-head (if applicable)
-        const headToHead = this.getHeadToHead(a.team, b.team, group.map(t => t.team));
-        if (headToHead) return headToHead;
         
         // Finally, by round wins (descending)
         return b.roundWins - a.roundWins;
@@ -148,10 +158,6 @@ class RT25KSimulator {
     const team2Standing = groupStandings.find(t => t.team === team2);
 
     if (!team1Standing || !team2Standing) return;
-
-    // Update matches played
-    team1Standing.matchesPlayed++;
-    team2Standing.matchesPlayed++;
 
     // Update round wins/losses
     team1Standing.roundWins += score1;
@@ -176,36 +182,6 @@ class RT25KSimulator {
     // Update map difference
     team1Standing.mapDiff = team1Standing.roundWins - team1Standing.roundLosses;
     team2Standing.mapDiff = team2Standing.roundWins - team2Standing.roundLosses;
-  }
-
-  getHeadToHead(teamA, teamB, groupTeams) {
-    const matches = this.matches.filter(match => 
-      ((match.team1 === teamA && match.team2 === teamB) || 
-       (match.team1 === teamB && match.team2 === teamA)) &&
-      match.completed
-    );
-
-    if (matches.length === 0) return null;
-
-    let aPoints = 0;
-    let bPoints = 0;
-
-    for (const match of matches) {
-      if (match.score1 > match.score2) {
-        if (match.team1 === teamA) aPoints += 3;
-        else bPoints += 3;
-      } else if (match.score2 > match.score1) {
-        if (match.team2 === teamA) aPoints += 3;
-        else bPoints += 3;
-      } else {
-        aPoints += 1;
-        bPoints += 1;
-      }
-    }
-
-    if (aPoints > bPoints) return -1;
-    if (bPoints > aPoints) return 1;
-    return 0;
   }
 }
 
