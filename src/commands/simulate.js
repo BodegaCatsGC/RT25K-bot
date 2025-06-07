@@ -3,6 +3,22 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getStandings, getAvailableSheets, getSchedule } = require('../utils/googleSheets');
 const { RT25KSimulator } = require('../utils/simulation');
 
+// List of allowed team sheets
+const ALLOWED_TEAMS = [
+  'Achieve Greatness',
+  'Bodega Cats',
+  'On Site',
+  'High Octane',
+  'Zero Tolerance',
+  'Zero Gaming',
+  'Before The Fame',
+  'Coatesville',
+  'Lights Out',
+  'Liquid Pro Am',
+  'Hitlist',
+  'Nobody Plays Harder'
+];
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('simulate')
@@ -15,17 +31,17 @@ module.exports = {
 
       console.log('Fetching available sheets...');
       const sheets = await getAvailableSheets();
-      console.log('Available sheets:', sheets.map(s => s.title));
       
-      const teamSheets = sheets
-        .filter(sheet => !['standings', 'schedule', 'overall', 'template']
-          .includes(sheet.title.toLowerCase()));
+      // Filter to only include allowed teams that exist in the sheets
+      const teamSheets = ALLOWED_TEAMS
+        .map(teamName => sheets.find(sheet => sheet.title === teamName))
+        .filter(Boolean);
 
-      console.log('Filtered team sheets:', teamSheets.map(s => s.title));
+      console.log('Allowed team sheets found:', teamSheets.map(s => s.title));
 
       if (teamSheets.length === 0) {
-        console.log('No team sheets found');
-        return interaction.editReply('❌ No team sheets found in the spreadsheet.');
+        console.log('No allowed team sheets found');
+        return interaction.editReply('❌ No valid team sheets found in the spreadsheet.');
       }
 
       console.log('Fetching standings...');
@@ -37,7 +53,7 @@ module.exports = {
         return interaction.editReply('❌ Could not load team standings.');
       }
 
-      // Get all matches from all team schedules
+      // Get all matches from allowed team schedules
       console.log('Fetching team schedules...');
       let allMatches = [];
       const processedMatches = new Set();
@@ -54,10 +70,13 @@ module.exports = {
               continue;
             }
             
-            const key = [match.homeTeam, match.awayTeam].sort().join('_');
-            if (!processedMatches.has(key)) {
-              allMatches.push(match);
-              processedMatches.add(key);
+            // Only include matches where both teams are in the allowed list
+            if (ALLOWED_TEAMS.includes(match.homeTeam) && ALLOWED_TEAMS.includes(match.awayTeam)) {
+              const key = [match.homeTeam, match.awayTeam].sort().join('_');
+              if (!processedMatches.has(key)) {
+                allMatches.push(match);
+                processedMatches.add(key);
+              }
             }
           }
         } catch (error) {
