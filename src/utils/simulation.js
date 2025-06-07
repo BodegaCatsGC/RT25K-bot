@@ -57,11 +57,11 @@ class RT25KSimulator {
     for (const match of schedule) {
       if (!match.homeTeam || !match.awayTeam) continue;
       
-      // Check if match is completed (has a series winner or games played)
+      // Check if the match is completed (has a winner or any games played)
       const hasPlayedGames = match.games && match.games.some(g => g.homeScore > 0 || g.awayScore > 0);
       const isCompleted = match.seriesWinner && match.seriesWinner !== 'N/A' || hasPlayedGames;
       
-      // Calculate scores from games
+      // Calculate total scores from games (if any)
       let score1 = 0;
       let score2 = 0;
       
@@ -83,6 +83,7 @@ class RT25KSimulator {
       });
     }
     
+    console.log(`Prepared ${matches.length} matches (${matches.filter(m => !m.completed).length} remaining to simulate)`);
     return matches;
   }
 
