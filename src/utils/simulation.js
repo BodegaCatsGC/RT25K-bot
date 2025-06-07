@@ -98,14 +98,8 @@ class RT25KSimulator {
   prepareTeamData(standings) {
     const teamData = {};
     
-    if (!standings || !Array.isArray(standings)) {
-      console.error('Invalid standings data in prepareTeamData:', standings);
-      return teamData;
-    }
+    console.log('Preparing team data from standings:', standings);
     
-    console.log(`Preparing team data from ${standings.length} standings entries`);
-    
-    // First pass: create team entries with basic info
     for (const team of standings) {
       try {
         if (!team || !team.team) {
@@ -113,21 +107,30 @@ class RT25KSimulator {
           continue;
         }
         
+        const points = Number(team.total_points) || 0;
+        const gamesPlayed = Number(team.games_played) || 0;
+        
         teamData[team.team] = {
           name: team.team,
           group: team.group || 'DefaultGroup',
-          points: Number(team.total_points) || 0,
-          gamesPlayed: 0,  // Will be updated in calculateGamesPlayed
-          activity: 'inactive',  // Will be updated based on games played
-          power: MIN_POWER  // Will be updated after games are counted
+          points: points,
+          gamesPlayed: gamesPlayed,
+          wins: 0,
+          losses: 0,
+          activity: this.getActivityLevel(gamesPlayed),
+          power: 0, // Will be calculated dynamically
+          headToHead: {}
         };
         
+        console.log(`Added team: ${team.team} (${team.group || 'No Group'}) - ` +
+                    `${points} pts, ${gamesPlayed} games, ` +
+                    `activity: ${teamData[team.team].activity}`);
       } catch (error) {
         console.error('Error processing team:', team, error);
       }
     }
     
-    console.log(`Prepared data for ${Object.keys(teamData).length} teams`);
+    console.log(`Team data prepared. Total teams: ${Object.keys(teamData).length}`);
     return teamData;
   }
 
@@ -325,44 +328,83 @@ class RT25KSimulator {
   }
 
   updateStandings(standings, match) {
-    const { team1, team2, score1, score2, group } = match;
-    const groupStandings = standings[group] || [];
+    if (!match.completed) return;
     
-    const team1Standing = groupStandings.find(t => t.team === team1);
-    const team2Standing = groupStandings.find(t => t.team === team2);
-
-    if (!team1Standing || !team2Standing) return;
-
-    // Update round wins/losses
+    const { team1, team2, score1, score2 } = match;
+    
+    // Find teams in their respective groups
+    const findTeamInStandings = (teamName) => {
+      for (const group of Object.values(standings)) {
+        const team = group.find(t => t.team === teamName);
+        if (team) return team;
+      }
+      console.warn(`Team not found in any group: ${teamName}`);
+      return null;
+    };
+    
+    const team1Standing = findTeamInStandings(team1);
+    const team2Standing = findTeamInStandings(team2);
+    
+    if (!team1Standing || !team2Standing) {
+      console.warn(`Could not update standings for match: ${team1} vs ${team2}`);
+      return;
+    }
+    
+    // Store previous points for logging
+    const team1PrevPoints = team1Standing.points;
+    const team2PrevPoints = team2Standing.points;
+    
+    // Update wins/losses and points based on series result
+    if (score1 > score2) {
+      // Team 1 wins the series
+      team1Standing.wins++;
+      team2Standing.losses++;
+      
+      // Add points: 25 for win, 15 for loss
+      team1Standing.points += this.constructor.POINTS_WIN;
+      team2Standing.points += this.constructor.POINTS_LOSS;
+      
+      // Update head-to-head
+      team1Standing.headToHead[team2] = (team1Standing.headToHead[team2] || 0) + 1;
+    } else {
+      // Team 2 wins the series
+      team2Standing.wins++;
+      team1Standing.losses++;
+      
+      // Add points: 25 for win, 15 for loss
+      team2Standing.points += this.constructor.POINTS_WIN;
+      team1Standing.points += this.constructor.POINTS_LOSS;
+      
+      // Update head-to-head
+      team2Standing.headToHead[team1] = (team2Standing.headToHead[team1] || 0) + 1;
+    }
+    
+    // Update round wins/losses and point differential
     team1Standing.roundWins += score1;
     team1Standing.roundLosses += score2;
     team2Standing.roundWins += score2;
     team2Standing.roundLosses += score1;
-
-    // Update match results
-    if (score1 > score2) {
-      team1Standing.wins++;
-      team2Standing.losses++;
-      team1Standing.points += 3;
-      
-      // Record head-to-head result
-      team1Standing.headToHead[team2] = (team1Standing.headToHead[team2] || 0) + 1;
-    } else if (score2 > score1) {
-      team2Standing.wins++;
-      team1Standing.losses++;
-      team2Standing.points += 3;
-      
-      // Record head-to-head result
-      team2Standing.headToHead[team1] = (team2Standing.headToHead[team1] || 0) + 1;
-    } else {
-      // In case of a draw (shouldn't happen in BO3, but just in case)
-      team1Standing.points += 1;
-      team2Standing.points += 1;
+    
+    // Update point differential (round wins - round losses)
+    team1Standing.pointDifferential = team1Standing.roundWins - team1Standing.roundLosses;
+    team2Standing.pointDifferential = team2Standing.roundWins - team2Standing.roundLosses;
+    
+    // Log the point changes
+    console.log(`\n=== Match: ${team1} ${score1}-${score2} ${team2} ===`);
+    console.log(`${team1}: ${team1PrevPoints} -> ${team1Standing.points} pts ` +
+                `(+${team1Standing.points - team1PrevPoints})`);
+    console.log(`${team2}: ${team2PrevPoints} -> ${team2Standing.points} pts ` +
+                `(+${team2Standing.points - team2PrevPoints})`);
+    
+    // Update the team data with new points for power calculations
+    if (this.teamData[team1]) {
+      this.teamData[team1].points = team1Standing.points;
+      this.teamData[team1].gamesPlayed = team1Standing.wins + team1Standing.losses;
     }
-
-    // Update point differential
-    team1Standing.pointDifferential += (score1 - score2);
-    team2Standing.pointDifferential += (score2 - score1);
+    if (this.teamData[team2]) {
+      this.teamData[team2].points = team2Standing.points;
+      this.teamData[team2].gamesPlayed = team2Standing.wins + team2Standing.losses;
+    }
   }
 
   applyTiebreakers(teams) {
@@ -451,6 +493,9 @@ class RT25KSimulator {
       }
     }
   }
+
+  static get POINTS_WIN() { return 25; }
+  static get POINTS_LOSS() { return 15; }
 }
 
 module.exports = {
