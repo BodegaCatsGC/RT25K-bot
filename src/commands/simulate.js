@@ -115,7 +115,7 @@ module.exports = {
           .setTimestamp();
 
         if (simulatedMatches.length > 0) {
-          const matchResults = simulatedMatches.map((match, index) => 
+          const matchResults = simulatedMatches.map(match => 
             `**${match.team1}** ${match.score1}-${match.score2} **${match.team2}**`
           ).join('\n');
           
@@ -125,14 +125,23 @@ module.exports = {
             inline: false
           });
 
-          // Add a summary of the top teams
+          // Add a summary of the top teams with current and simulated points
           const topTeams = [];
           for (const [group, teams] of Object.entries(finalStandings)) {
+            // Get the top 3 teams in this group
             const top3 = teams.slice(0, 3);
-            topTeams.push(
-              `**${group}**: ` +
-              top3.map((t, i) => `${i + 1}. ${t.team} (${t.points} pts)`).join(', ')
-            );
+            
+            // Create a formatted string for each team showing current and simulated points
+            const teamStrings = top3.map((team, index) => {
+              // Find the original team data to get current points
+              const originalTeam = standings.find(t => t.team === team.team);
+              const currentPoints = originalTeam?.total_points || 0;
+              const pointsGained = team.points - currentPoints;
+              
+              return `${index + 1}. ${team.team} (${currentPoints} + ${pointsGained} = ${team.points} pts)`;
+            });
+            
+            topTeams.push(`**${group}**: ${teamStrings.join(', ')}`);
           }
 
           embed.addFields({
