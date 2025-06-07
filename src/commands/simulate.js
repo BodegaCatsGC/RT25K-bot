@@ -10,33 +10,50 @@ module.exports = {
 
   async execute(interaction) {
     try {
+      console.log('Simulate command started');
       await interaction.deferReply();
 
-      // Get available sheets to find team schedules
+      console.log('Fetching available sheets...');
       const sheets = await getAvailableSheets();
+      console.log('Available sheets:', sheets.map(s => s.title));
+      
       const teamSheets = sheets
-        .filter(sheet => !['standings', 'schedule', 'overall', 'template'].includes(sheet.title.toLowerCase()));
+        .filter(sheet => !['standings', 'schedule', 'overall', 'template']
+          .includes(sheet.title.toLowerCase()));
+
+      console.log('Filtered team sheets:', teamSheets.map(s => s.title));
 
       if (teamSheets.length === 0) {
+        console.log('No team sheets found');
         return interaction.editReply('❌ No team sheets found in the spreadsheet.');
       }
 
-      // Get standings
+      console.log('Fetching standings...');
       const standings = await getStandings();
+      console.log('Standings loaded, count:', standings?.length);
+      
       if (!standings || standings.length === 0) {
+        console.log('No standings data');
         return interaction.editReply('❌ Could not load team standings.');
       }
 
       // Get all matches from all team schedules
+      console.log('Fetching team schedules...');
       let allMatches = [];
       const processedMatches = new Set();
       
       for (const sheet of teamSheets) {
         try {
+          console.log(`Processing sheet: ${sheet.title}`);
           const teamSchedule = await getSchedule({ sheetName: sheet.title });
+          console.log(`Found ${teamSchedule.length} matches in ${sheet.title}`);
           
-          // Filter out duplicates by creating a unique match key
           for (const match of teamSchedule) {
+            if (!match.homeTeam || !match.awayTeam) {
+              console.log('Skipping match with missing team data:', match);
+              continue;
+            }
+            
             const key = [match.homeTeam, match.awayTeam].sort().join('_');
             if (!processedMatches.has(key)) {
               allMatches.push(match);
@@ -45,66 +62,74 @@ module.exports = {
           }
         } catch (error) {
           console.error(`Error processing sheet ${sheet.title}:`, error);
-          // Continue with other sheets even if one fails
         }
       }
 
+      console.log(`Total unique matches found: ${allMatches.length}`);
+      
       if (allMatches.length === 0) {
+        console.log('No matches found in any team schedule');
         return interaction.editReply('❌ No matches found in team schedules.');
       }
 
-      console.log(`Found ${allMatches.length} unique matches across all team schedules`);
-
-      // Initialize simulator with the data
-      const simulator = new RT25KSimulator(standings, allMatches);
-      
-      // Run simulation
-      const { standings: finalStandings, simulatedMatches } = simulator.simulateRemainingMatches();
-
-      // Create embed
-      const embed = new EmbedBuilder()
-        .setTitle(' Simulated Match Results')
-        .setColor('#0099ff')
-        .setDescription('Results of simulated remaining matches:')
-        .setTimestamp();
-
-      // Add simulated matches to the embed
-      if (simulatedMatches.length > 0) {
-        const matchResults = simulatedMatches.map((match, index) => 
-          `**${match.team1}** ${match.score1}-${match.score2} **${match.team2}**`
-        ).join('\n');
+      try {
+        console.log('Initializing simulator...');
+        const simulator = new RT25KSimulator(standings, allMatches);
         
-        embed.addFields({
-          name: 'Simulated Matches',
-          value: matchResults || 'No matches needed simulation',
-          inline: false
-        });
+        console.log('Running simulation...');
+        const { standings: finalStandings, simulatedMatches } = simulator.simulateRemainingMatches();
+        console.log('Simulation completed');
 
-        // Add a summary of the top teams
-        const topTeams = [];
-        for (const [group, teams] of Object.entries(finalStandings)) {
-          const top3 = teams.slice(0, 3);
-          topTeams.push(
-            `**${group}**: ` +
-            top3.map((t, i) => `${i + 1}. ${t.team} (${t.points} pts)`).join(', ')
-          );
+        // Create and send the embed
+        const embed = new EmbedBuilder()
+          .setTitle('🎮 Simulated Match Results')
+          .setColor('#0099ff')
+          .setDescription('Results of simulated remaining matches:')
+          .setTimestamp();
+
+        if (simulatedMatches.length > 0) {
+          const matchResults = simulatedMatches.map((match, index) => 
+            `**${match.team1}** ${match.score1}-${match.score2} **${match.team2}**`
+          ).join('\n');
+          
+          embed.addFields({
+            name: 'Simulated Matches',
+            value: matchResults || 'No matches needed simulation',
+            inline: false
+          });
+
+          // Add a summary of the top teams
+          const topTeams = [];
+          for (const [group, teams] of Object.entries(finalStandings)) {
+            const top3 = teams.slice(0, 3);
+            topTeams.push(
+              `**${group}**: ` +
+              top3.map((t, i) => `${i + 1}. ${t.team} (${t.points} pts)`).join(', ')
+            );
+          }
+
+          embed.addFields({
+            name: 'Projected Group Leaders',
+            value: topTeams.join('\n') || 'No standings available',
+            inline: false
+          });
+        } else {
+          embed.setDescription('No remaining matches to simulate!');
         }
 
-        embed.addFields({
-          name: 'Projected Group Leaders',
-          value: topTeams.join('\n') || 'No standings available',
-          inline: false
-        });
-      } else {
-        embed.setDescription('No remaining matches to simulate!');
-      }
+        console.log('Sending response...');
+        await interaction.editReply({ embeds: [embed] });
+        console.log('Response sent successfully');
 
-      await interaction.editReply({ embeds: [embed] });
+      } catch (simError) {
+        console.error('Error during simulation:', simError);
+        throw new Error(`Simulation error: ${simError.message}`);
+      }
 
     } catch (error) {
       console.error('Error in simulate command:', error);
       await interaction.editReply({
-        content: ' An error occurred while running the simulation. Check the console for details.',
+        content: `❌ An error occurred: ${error.message || 'Unknown error'}`,
         ephemeral: true
       });
     }
