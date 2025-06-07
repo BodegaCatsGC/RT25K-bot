@@ -1,61 +1,60 @@
-// src/commands/simulate.ts
-import { SlashCommandBuilder, EmbedBuilder, ChatInputCommandInteraction } from 'discord.js';
-import { RT25KSimulator } from '../simulation';
+// src/commands/simulate.js
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { getStandings, getSchedule } = require('../utils/googleSheets');
+const { RT25KSimulator } = require('../utils/simulation');
 
-// Assuming you have a way to get the googleSheets client
-// This would be passed in from your command handler
-interface CommandDependencies {
-    googleSheets: any; // Replace with your Google Sheets client type
-    sheetId: string;
-    teamsSheetName: string;
-    matchesSheetName: string;
-}
-
-export const data = new SlashCommandBuilder()
+module.exports = {
+  data: new SlashCommandBuilder()
     .setName('simulate')
-    .setDescription('Simulate the remaining matches and show projected standings');
+    .setDescription('Simulate the remaining matches and show projected standings'),
 
-export const execute = async (interaction: ChatInputCommandInteraction, deps: CommandDependencies) => {
-    await interaction.deferReply();
-
+  async execute(interaction) {
     try {
-        const { googleSheets, sheetId, teamsSheetName, matchesSheetName } = deps;
-        const simulator = new RT25KSimulator(googleSheets);
+      await interaction.deferReply();
 
-        // Load data
-        await simulator.loadTeamData(sheetId, teamsSheetName);
-        await simulator.loadMatches(sheetId, matchesSheetName);
+      // Get current standings and schedule using existing utilities
+      const [standings, schedule] = await Promise.all([
+        getStandings(),
+        getSchedule()
+      ]);
 
-        // Run simulation
-        const results = simulator.simulateRemainingMatches();
+      // Initialize simulator with the data
+      const simulator = new RT25KSimulator(standings, schedule);
+      
+      // Run simulation
+      const results = simulator.simulateRemainingMatches();
 
-        // Create embed
-        const embed = new EmbedBuilder()
-            .setTitle('🏆 Projected Standings')
-            .setColor('#0099ff')
-            .setDescription('Simulation results based on current standings and team power levels')
-            .setTimestamp();
+      // Create embed
+      const embed = new EmbedBuilder()
+        .setTitle('🏆 Projected Standings')
+        .setColor('#0099ff')
+        .setDescription('Simulation results based on current standings and team power levels')
+        .setTimestamp();
 
-        // Add a field for each group
-        for (const [group, teams] of Object.entries(results)) {
-            const groupStandings = teams
-                .map((team, index) => 
-                    `**${index + 1}.** ${team.team} - ${team.points} pts ` +
-                    `(${team.wins}W-${team.losses}L, ${team.roundWins}-${team.roundLosses} RD)`
-                )
-                .join('\n');
+      // Add a field for each group
+      for (const [group, teams] of Object.entries(results)) {
+        const groupStandings = teams
+          .map((team, index) => 
+            `**${index + 1}.** ${team.team} - ${team.points} pts ` +
+            `(${team.wins}W-${team.losses}L, ${team.roundWins}-${team.roundLosses} RD)`
+          )
+          .join('\n');
 
-            embed.addFields({
-                name: `Group ${group}`,
-                value: groupStandings,
-                inline: false
-            });
-        }
+        embed.addFields({
+          name: `Group ${group}`,
+          value: groupStandings,
+          inline: false
+        });
+      }
 
-        await interaction.editReply({ embeds: [embed] });
+      await interaction.editReply({ embeds: [embed] });
 
     } catch (error) {
-        console.error('Error in simulate command:', error);
-        await interaction.editReply('❌ An error occurred while running the simulation.');
+      console.error('Error in simulate command:', error);
+      await interaction.editReply({
+        content: '❌ An error occurred while running the simulation.',
+        ephemeral: true
+      });
     }
+  }
 };

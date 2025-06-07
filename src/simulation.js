@@ -1,49 +1,62 @@
-// src/simulation.ts
+// src/simulation.js
 
-interface TeamData {
-    power: number;
-    activity: number;
-    group: string;
-}
+// Interfaces for type documentation
+/**
+ * @typedef {Object} TeamData
+ * @property {number} power
+ * @property {number} activity
+ * @property {string} group
+ */
 
-interface MatchResult {
-    team1: string;
-    team2: string;
-    score1: number;
-    score2: number;
-    group: string;
-}
+/**
+ * @typedef {Object} MatchResult
+ * @property {string} team1
+ * @property {string} team2
+ * @property {number} score1
+ * @property {number} score2
+ * @property {string} group
+ */
 
-interface SimulationResult {
-    [group: string]: Array<{
-        team: string;
-        points: number;
-        matchesPlayed: number;
-        wins: number;
-        losses: number;
-        mapDiff: number;
-        roundWins: number;
-        roundLosses: number;
-    }>;
-}
+/**
+ * @typedef {Object} TeamStanding
+ * @property {string} team
+ * @property {number} points
+ * @property {number} matchesPlayed
+ * @property {number} wins
+ * @property {number} losses
+ * @property {number} mapDiff
+ * @property {number} roundWins
+ * @property {number} roundLosses
+ */
+
+/**
+ * @typedef {Object.<string, TeamStanding[]>} SimulationResult
+ */
 
 const DEFAULT_BOOST_FACTOR = 0.2;
 const DEFAULT_BEST_OF_SERIES = 5;
 
-export class RT25KSimulator {
-    private teamData: Record<string, TeamData> = {};
-    private matches: MatchResult[] = [];
+class RT25KSimulator {
+    constructor(googleSheets) {
+        this.googleSheets = googleSheets;
+        /** @type {Object.<string, TeamData>} */
+        this.teamData = {};
+        /** @type {MatchResult[]} */
+        this.matches = [];
+    }
 
-    constructor(private googleSheets: any) {}
-
-    async loadTeamData(sheetId: string, sheetName: string): Promise<void> {
-        // Use your existing Google Sheets integration to load team data
+    /**
+     * @param {string} sheetId
+     * @param {string} sheetName
+     * @returns {Promise<void>}
+     */
+    async loadTeamData(sheetId, sheetName) {
         const doc = this.googleSheets.doc(sheetId);
         await doc.loadInfo();
         const sheet = doc.sheetsByTitle[sheetName];
         const rows = await sheet.getRows();
 
-        this.teamData = rows.reduce((acc: Record<string, TeamData>, row: any) => {
+        this.teamData = rows.reduce((acc, row) => {
             const teamName = row.get('Team Name') || row.get('Team');
             if (!teamName) return acc;
             
@@ -56,29 +69,42 @@ export class RT25KSimulator {
         }, {});
     }
 
-    async loadMatches(sheetId: string, sheetName: string): Promise<void> {
-        // Use your existing Google Sheets integration to load match data
+    /**
+     * @param {string} sheetId
+     * @param {string} sheetName
+     * @returns {Promise<void>}
+     */
+    async loadMatches(sheetId, sheetName) {
         const doc = this.googleSheets.doc(sheetId);
         await doc.loadInfo();
         const sheet = doc.sheetsByTitle[sheetName];
         const rows = await sheet.getRows();
 
-        this.matches = rows.map((row: any) => ({
+        this.matches = rows.map(row => ({
             team1: row.get('team1'),
             team2: row.get('team2'),
             score1: parseInt(row.get('score1') || '0', 10),
             score2: parseInt(row.get('score2') || '0', 10),
             group: row.get('group') || 'DefaultGroup'
-        })).filter((match: MatchResult) => match.team1 && match.team2);
+        })).filter(match => match.team1 && match.team2);
     }
 
-    private getAdjustedPower(teamName: string): number {
+    /**
+     * @param {string} teamName
+     * @returns {number}
+     */
+    getAdjustedPower(teamName) {
         const team = this.teamData[teamName];
         if (!team) return 0;
         return team.power * (1 + DEFAULT_BOOST_FACTOR * team.activity);
     }
 
-    private simulateGame(teamA: string, teamB: string): string {
+    /**
+     * @param {string} teamA
+     * @param {string} teamB
+     * @returns {string}
+     */
+    simulateGame(teamA, teamB) {
         const aPower = this.getAdjustedPower(teamA);
         const bPower = this.getAdjustedPower(teamB);
         const total = aPower + bPower;
@@ -86,7 +112,12 @@ export class RT25KSimulator {
         return roll < aPower ? teamA : teamB;
     }
 
-    private simulateSeries(teamA: string, teamB: string): { winner: string, scoreA: number, scoreB: number } {
+    /**
+     * @param {string} teamA
+     * @param {string} teamB
+     * @returns {{winner: string, scoreA: number, scoreB: number}}
+     */
+    simulateSeries(teamA, teamB) {
         let scoreA = 0;
         let scoreB = 0;
         const requiredWins = Math.ceil(DEFAULT_BEST_OF_SERIES / 2);
@@ -104,8 +135,12 @@ export class RT25KSimulator {
         };
     }
 
-    public simulateRemainingMatches(): SimulationResult {
-        const results: SimulationResult = {};
+    /**
+     * @returns {SimulationResult}
+     */
+    simulateRemainingMatches() {
+        /** @type {SimulationResult} */
+        const results = {};
 
         // Initialize group standings
         Object.entries(this.teamData).forEach(([teamName, data]) => {
@@ -153,7 +188,7 @@ export class RT25KSimulator {
                     
                     if (!matchPlayed) {
                         const { winner, scoreA, scoreB } = this.simulateSeries(teamA, teamB);
-                        const simulatedMatch: MatchResult = {
+                        const simulatedMatch = {
                             team1: teamA,
                             team2: teamB,
                             score1: scoreA,
@@ -191,7 +226,11 @@ export class RT25KSimulator {
         return results;
     }
 
-    private updateStandings(standings: SimulationResult, match: MatchResult): void {
+    /**
+     * @param {SimulationResult} standings
+     * @param {MatchResult} match
+     */
+    updateStandings(standings, match) {
         const { team1, team2, score1, score2, group } = match;
         
         const groupStandings = standings[group];
@@ -228,7 +267,13 @@ export class RT25KSimulator {
         }
     }
 
-    private getHeadToHead(teamA: string, teamB: string, groupTeams: string[]): number | null {
+    /**
+     * @param {string} teamA
+     * @param {string} teamB
+     * @param {string[]} groupTeams
+     * @returns {number | null}
+     */
+    getHeadToHead(teamA, teamB, groupTeams) {
         // Get all matches between these two teams in the group stage
         const matches = this.matches.filter(match => 
             ((match.team1 === teamA && match.team2 === teamB) || 
@@ -254,9 +299,12 @@ export class RT25KSimulator {
             }
         }
 
-
         if (aPoints > bPoints) return -1; // teamA is higher
         if (bPoints > aPoints) return 1;  // teamB is higher
         return 0; // Still tied
     }
 }
+
+module.exports = {
+    RT25KSimulator
+};
