@@ -208,66 +208,77 @@ class RT25KSimulator {
   }
 
   simulateRemainingMatches() {
+    console.log('Starting simulation with teams:', Object.keys(this.teamData));
+    console.log('Total matches to process:', this.matches?.length || 0);
+    
     const results = {};
+    const simulatedMatches = [];
 
-    // Initialize group standings
-    for (const team of this.standings) {
-      if (!team || !team.team) continue;
-      
-      const group = team.group || 'DefaultGroup';
-      if (!results[group]) {
-        results[group] = [];
+    // Initialize group standings structure
+    Object.values(this.teamData).forEach(team => {
+      if (!results[team.group]) {
+        results[team.group] = [];
       }
       
-      results[group].push({
-        team: team.team,
-        points: team.total_points || 0,
+      results[team.group].push({
+        team: team.name,
+        points: team.points || 0,
         wins: 0,
         losses: 0,
         roundWins: 0,
         roundLosses: 0,
-        pointDifferential: team.point_differential || 0,
-        headToHead: {} // Track head-to-head results for tiebreakers
+        pointDifferential: 0,
+        headToHead: {}
       });
-    }
-
-    // Process completed matches
-    this.matches.forEach(match => {
-      if (match.completed) {
-        this.updateStandings(results, match);
-      }
     });
 
+    // Process completed matches first
+    console.log('Processing completed matches...');
+    this.matches
+      .filter(match => match.completed)
+      .forEach(match => {
+        this.updateStandings(results, match);
+      });
+
     // Simulate remaining matches
-    for (const match of this.matches) {
-      if (!match.completed) {
-        console.log(`\nSimulating match: ${match.team1} vs ${match.team2}`);
-        
-        // Simulate a best of 3 series
-        let score1 = 0, score2 = 0;
-        while (score1 < 2 && score2 < 2) {
-          const winner = this.simulateGame(match.team1, match.team2);
-          if (winner === match.team1) score1++;
-          else score2++;
-        }
-        
-        console.log(`Simulated result: ${match.team1} ${score1}-${score2} ${match.team2}`);
-        
-        const simulatedMatch = {
-          ...match,
-          score1: score1,
-          score2: score2,
-          completed: true
-        };
-        
-        this.updateStandings(results, simulatedMatch);
+    console.log('Simulating remaining matches...');
+    const remainingMatches = this.matches.filter(match => !match.completed);
+    console.log(`Found ${remainingMatches.length} matches to simulate`);
+    
+    for (const match of remainingMatches) {
+      console.log(`Simulating match: ${match.team1} vs ${match.team2}`);
+      
+      // Simulate best of 3 series
+      let score1 = 0, score2 = 0;
+      while (score1 < 2 && score2 < 2) {
+        const winner = this.simulateGame(match.team1, match.team2);
+        if (winner === match.team1) score1++;
+        else score2++;
       }
+      
+      console.log(`Simulated result: ${match.team1} ${score1}-${score2} ${match.team2}`);
+      
+      const simulatedMatch = {
+        ...match,
+        score1,
+        score2,
+        completed: true
+      };
+      
+      simulatedMatches.push(simulatedMatch);
+      this.updateStandings(results, simulatedMatch);
     }
 
-    // Sort each group with tiebreakers
-    this.applyTiebreakers(results);
+    // Apply tiebreakers to each group
+    console.log('Applying tiebreakers...');
+    Object.values(results).forEach(group => {
+      this.applyTiebreakers(group);
+    });
 
-    return results;
+    return {
+      standings: results,
+      simulatedMatches
+    };
   }
 
   updateStandings(standings, match) {

@@ -93,12 +93,20 @@ module.exports = {
 
       try {
         console.log('Initializing simulator...');
+        console.log('Standings data:', JSON.stringify(standings, null, 2));
+        console.log('Matches data:', JSON.stringify(allMatches.slice(0, 2), null, 2)); // Log first 2 matches
+        
         const simulator = new RT25KSimulator(standings, allMatches);
         
         console.log('Running simulation...');
-        const { standings: finalStandings, simulatedMatches } = simulator.simulateRemainingMatches();
-        console.log('Simulation completed');
-
+        const result = simulator.simulateRemainingMatches();
+        console.log('Simulation result:', JSON.stringify({
+          standings: result.standings ? '[...]' : 'undefined',
+          simulatedMatches: result.simulatedMatches ? `[${result.simulatedMatches.length} matches]` : 'undefined'
+        }, null, 2));
+        
+        const { standings: finalStandings, simulatedMatches } = result;
+        
         // Create and send the embed
         const embed = new EmbedBuilder()
           .setTitle('🎮 Simulated Match Results')
