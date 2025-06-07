@@ -1,6 +1,16 @@
 // src/utils/simulation.js
 
-const DEFAULT_BOOST_FACTOR = 0.2;
+// Activity level multipliers
+const ACTIVITY_MULTIPLIERS = {
+  active: 1.0,    // Full boost for active teams
+  partial: 0.5,   // Half boost for partially active teams
+  inactive: 0.1   // Minimal boost for inactive teams
+};
+
+// Base power calculation parameters
+const BASE_POWER_MULTIPLIER = 0.1;  // How much total_points affect power
+const MIN_POWER = 0.5;              // Minimum power level for any team
+const RANDOMNESS_FACTOR = 0.15;     // Add some randomness to simulations
 
 class RT25KSimulator {
   /**
@@ -20,12 +30,22 @@ class RT25KSimulator {
     for (const team of standings) {
       if (!team || !team.team) continue;
       
+      // Calculate base power from total points
+      const basePower = (team.total_points || 0) * BASE_POWER_MULTIPLIER;
+      
+      // Get activity multiplier (default to 'active' if not specified)
+      const activityLevel = (team.activity_level || 'active').toLowerCase();
+      const activityMultiplier = ACTIVITY_MULTIPLIERS[activityLevel] || ACTIVITY_MULTIPLIERS.active;
+      
       teamData[team.team] = {
-        power: team.totalPoints || 0,
-        activity: 1.0,
+        power: Math.max(basePower, MIN_POWER),  // Ensure minimum power
+        activity: activityMultiplier,
         group: team.group || 'DefaultGroup',
+        pointDifferential: team.point_differential || 0,
         originalData: team
       };
+      
+      console.log(`Team ${team.team} - Power: ${teamData[team.team].power}, Activity: ${activityLevel}`);
     }
     
     return teamData;
@@ -37,10 +57,11 @@ class RT25KSimulator {
     for (const match of schedule) {
       if (!match.homeTeam || !match.awayTeam) continue;
       
-      // Skip matches that have already been played
-      const isCompleted = match.seriesWinner !== null && match.seriesWinner !== 'N/A';
+      // Check if match is completed (has a series winner or games played)
+      const hasPlayedGames = match.games && match.games.some(g => g.homeScore > 0 || g.awayScore > 0);
+      const isCompleted = match.seriesWinner && match.seriesWinner !== 'N/A' || hasPlayedGames;
       
-      // Calculate total scores from all games
+      // Calculate scores from games
       let score1 = 0;
       let score2 = 0;
       
@@ -56,7 +77,7 @@ class RT25KSimulator {
         team2: match.awayTeam,
         score1: score1,
         score2: score2,
-        group: 'DefaultGroup', // Group not available in schedule, use default
+        group: 'DefaultGroup',
         completed: isCompleted,
         originalData: match
       });
@@ -67,8 +88,16 @@ class RT25KSimulator {
 
   getAdjustedPower(teamName) {
     const team = this.teamData[teamName];
-    if (!team) return 0;
-    return team.power * (1 + DEFAULT_BOOST_FACTOR * team.activity);
+    if (!team) return MIN_POWER;
+    
+    // Base power adjusted by activity level
+    let adjustedPower = team.power * (1 + team.activity);
+    
+    // Add some randomness (up to ±RANDOMNESS_FACTOR%)
+    const randomness = 1 + (Math.random() * 2 - 1) * RANDOMNESS_FACTOR;
+    adjustedPower *= randomness;
+    
+    return Math.max(adjustedPower, MIN_POWER);
   }
 
   simulateGame(teamA, teamB) {
@@ -76,6 +105,9 @@ class RT25KSimulator {
     const bPower = this.getAdjustedPower(teamB);
     const total = aPower + bPower;
     const roll = Math.random() * total;
+    
+    console.log(`Simulating ${teamA} (${aPower.toFixed(2)}) vs ${teamB} (${bPower.toFixed(2)}) - Roll: ${roll.toFixed(2)}`);
+    
     return roll < aPower ? teamA : teamB;
   }
 
@@ -93,12 +125,13 @@ class RT25KSimulator {
       
       results[group].push({
         team: team.team,
-        points: team.totalPoints || 0,
-        wins: 0,  // These will be updated based on matches
+        points: team.total_points || 0,
+        wins: 0,
         losses: 0,
         roundWins: 0,
         roundLosses: 0,
-        mapDiff: 0
+        pointDifferential: team.point_differential || 0,
+        headToHead: {} // Track head-to-head results for tiebreakers
       });
     }
 
@@ -112,6 +145,8 @@ class RT25KSimulator {
     // Simulate remaining matches
     for (const match of this.matches) {
       if (!match.completed) {
+        console.log(`\nSimulating match: ${match.team1} vs ${match.team2}`);
+        
         // Simulate a best of 3 series
         let score1 = 0, score2 = 0;
         while (score1 < 2 && score2 < 2) {
@@ -119,6 +154,8 @@ class RT25KSimulator {
           if (winner === match.team1) score1++;
           else score2++;
         }
+        
+        console.log(`Simulated result: ${match.team1} ${score1}-${score2} ${match.team2}`);
         
         const simulatedMatch = {
           ...match,
@@ -131,21 +168,8 @@ class RT25KSimulator {
       }
     }
 
-    // Sort each group
-    for (const group of Object.values(results)) {
-      group.sort((a, b) => {
-        // Sort by points (descending)
-        if (a.points !== b.points) return b.points - a.points;
-        
-        // Then by map difference (descending)
-        const aDiff = a.roundWins - a.roundLosses;
-        const bDiff = b.roundWins - b.roundLosses;
-        if (aDiff !== bDiff) return bDiff - aDiff;
-        
-        // Finally, by round wins (descending)
-        return b.roundWins - a.roundWins;
-      });
-    }
+    // Sort each group with tiebreakers
+    this.applyTiebreakers(results);
 
     return results;
   }
@@ -170,18 +194,94 @@ class RT25KSimulator {
       team1Standing.wins++;
       team2Standing.losses++;
       team1Standing.points += 3;
+      
+      // Record head-to-head result
+      team1Standing.headToHead[team2] = (team1Standing.headToHead[team2] || 0) + 1;
     } else if (score2 > score1) {
       team2Standing.wins++;
       team1Standing.losses++;
       team2Standing.points += 3;
+      
+      // Record head-to-head result
+      team2Standing.headToHead[team1] = (team2Standing.headToHead[team1] || 0) + 1;
     } else {
+      // In case of a draw (shouldn't happen in BO3, but just in case)
       team1Standing.points += 1;
       team2Standing.points += 1;
     }
 
-    // Update map difference
-    team1Standing.mapDiff = team1Standing.roundWins - team1Standing.roundLosses;
-    team2Standing.mapDiff = team2Standing.roundWins - team2Standing.roundLosses;
+    // Update point differential
+    team1Standing.pointDifferential += (score1 - score2);
+    team2Standing.pointDifferential += (score2 - score1);
+  }
+
+  applyTiebreakers(standings) {
+    for (const [group, teams] of Object.entries(standings)) {
+      // First sort by points (descending)
+      teams.sort((a, b) => b.points - a.points);
+      
+      // Group teams with the same number of points
+      const groups = [];
+      let currentGroup = [teams[0]];
+      
+      for (let i = 1; i < teams.length; i++) {
+        if (teams[i].points === currentGroup[0].points) {
+          currentGroup.push(teams[i]);
+        } else {
+          if (currentGroup.length > 1) {
+            this.breakTies(currentGroup);
+          }
+          currentGroup = [teams[i]];
+        }
+      }
+      
+      // Handle the last group
+      if (currentGroup.length > 1) {
+        this.breakTies(currentGroup);
+      }
+      
+      // Rebuild the sorted array
+      let index = 0;
+      for (const group of groups) {
+        for (const team of group) {
+          teams[index++] = team;
+        }
+      }
+    }
+  }
+  
+  breakTies(teams) {
+    if (teams.length < 2) return;
+    
+    // 1. Head-to-head results
+    const headToHeadResults = {};
+    let hasHeadToHead = false;
+    
+    for (const team of teams) {
+      headToHeadResults[team.team] = 0;
+      for (const opponent of teams) {
+        if (team.team !== opponent.team && team.headToHead[opponent.team]) {
+          headToHeadResults[team.team] += team.headToHead[opponent.team];
+          hasHeadToHead = true;
+        }
+      }
+    }
+    
+    if (hasHeadToHead) {
+      teams.sort((a, b) => headToHeadResults[b.team] - headToHeadResults[a.team]);
+      return;
+    }
+    
+    // 2. Point differential
+    teams.sort((a, b) => b.pointDifferential - a.pointDifferential);
+    
+    // 3. If still tied, use a coin flip (random sort)
+    if (teams.length > 1 && teams[0].pointDifferential === teams[1].pointDifferential) {
+      for (let i = teams.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [teams[i], teams[j]] = [teams[j], teams[i]];
+      }
+    }
   }
 }
 
