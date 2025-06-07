@@ -115,9 +115,13 @@ module.exports = {
           .setTimestamp();
 
         if (simulatedMatches.length > 0) {
-          const matchResults = simulatedMatches.map(match => 
-            `**${match.team1}** ${match.score1}-${match.score2} **${match.team2}**`
-          ).join('\n');
+          // Display simulated matches with scores and points
+          const matchResults = simulatedMatches.map(match => {
+            const scoreText = `**${match.team1}** ${match.score1}-${match.score2} **${match.team2}**`;
+            const pointsText = `(${match.team1Points}-${match.team2Points} pts)`;
+            const sweepText = match.isSweep ? '🔥 SWEEP! ' : '';
+            return `${sweepText}${scoreText} ${pointsText}`;
+          }).join('\n');
           
           embed.addFields({
             name: 'Simulated Matches',
@@ -125,30 +129,38 @@ module.exports = {
             inline: false
           });
 
-          // Add a summary of the top teams with current and simulated points
-          const topTeams = [];
-          for (const [group, teams] of Object.entries(finalStandings)) {
-            // Get the top 3 teams in this group
-            const top3 = teams.slice(0, 3);
-            
-            // Create a formatted string for each team showing current and simulated points
-            const teamStrings = top3.map((team, index) => {
-              // Find the original team data to get current points
-              const originalTeam = standings.find(t => t.team === team.team);
-              const currentPoints = originalTeam?.total_points || 0;
-              const pointsGained = team.points - currentPoints;
-              
-              return `${index + 1}. ${team.team} (${currentPoints} + ${pointsGained} = ${team.points} pts)`;
-            });
-            
-            topTeams.push(`**${group}**: ${teamStrings.join(', ')}`);
+          // Calculate total points earned in simulation for each team
+          const pointsEarned = {};
+          
+          // Initialize all teams with 0 points earned
+          for (const team of standings) {
+            if (team.team) {
+              pointsEarned[team.team] = 0;
+            }
           }
-
-          embed.addFields({
-            name: 'Projected Group Leaders',
-            value: topTeams.join('\n') || 'No standings available',
-            inline: false
-          });
+          
+          // Calculate points from simulated matches
+          for (const match of simulatedMatches) {
+            pointsEarned[match.team1] = (pointsEarned[match.team1] || 0) + (match.team1Points || 0);
+            pointsEarned[match.team2] = (pointsEarned[match.team2] || 0) + (match.team2Points || 0);
+          }
+          
+          // Create a list of teams that earned points in the simulation
+          const teamsWithPoints = Object.entries(pointsEarned)
+            .filter(([_, points]) => points > 0)
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+          
+          if (teamsWithPoints.length > 0) {
+            const pointsList = teamsWithPoints
+              .map(([team, points]) => `• ${team}: +${points} pts`)
+              .join('\n');
+              
+            embed.addFields({
+              name: 'Points Earned in Simulation',
+              value: pointsList,
+              inline: false
+            });
+          }
         } else {
           embed.setDescription('No remaining matches to simulate!');
         }

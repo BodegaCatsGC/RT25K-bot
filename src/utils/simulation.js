@@ -117,8 +117,9 @@ class RT25KSimulator {
           gamesPlayed: gamesPlayed,
           wins: 0,
           losses: 0,
-          activity: this.getActivityLevel(gamesPlayed),
-          power: 0, // Will be calculated dynamically
+          roundWins: 0,
+          roundLosses: 0,
+          pointDifferential: 0,
           headToHead: {}
         };
         
@@ -240,89 +241,100 @@ class RT25KSimulator {
   }
 
   simulateSeries(team1, team2) {
-    console.log(`\n=== Starting series: ${team1} vs ${team2} ===`);
-    let score1 = 0, score2 = 0;
+    let score1 = 0;
+    let score2 = 0;
     
-    // Simulate best of 3 series
+    // Simulate games until one team gets 2 wins
     while (score1 < 2 && score2 < 2) {
       const winner = this.simulateGame(team1, team2);
+      
       if (winner === team1) {
         score1++;
-        console.log(`Game ${score1 + score2} winner: ${team1} (${score1}-${score2})`);
       } else {
         score2++;
-        console.log(`Game ${score1 + score2} winner: ${team2} (${score1}-${score2})`);
       }
+      
+      console.log(`Game ${score1 + score2}: ${team1} ${score1}-${score2} ${team2}`);
     }
     
-    console.log(`=== Series result: ${team1} ${score1}-${score2} ${team2} ===\n`);
     return { score1, score2 };
   }
 
   simulateRemainingMatches() {
-    console.log('Starting simulation with teams:', Object.keys(this.teamData));
-    console.log('Total matches to process:', this.matches?.length || 0);
-    
-    const results = {};
     const simulatedMatches = [];
-
-    // Initialize group standings structure
-    Object.values(this.teamData).forEach(team => {
-      if (!results[team.group]) {
-        results[team.group] = [];
+    
+    // Process each match in the schedule
+    for (const match of this.matches) {
+      if (match.completed) continue;
+      
+      const { team1, team2 } = match;
+      
+      // Ensure both teams exist in our data
+      if (!this.teamData[team1] || !this.teamData[team2]) {
+        console.warn(`Skipping match - one or both teams not found: ${team1} vs ${team2}`);
+        continue;
       }
       
-      results[team.group].push({
-        team: team.name,
-        points: team.points || 0,
-        wins: 0,
-        losses: 0,
-        roundWins: 0,
-        roundLosses: 0,
-        pointDifferential: 0,
-        headToHead: {}
-      });
-    });
-
-    // Process completed matches first
-    console.log('Processing completed matches...');
-    this.matches
-      .filter(match => match.completed)
-      .forEach(match => {
-        this.updateStandings(results, match);
-      });
-
-    // Simulate remaining matches
-    console.log('Simulating remaining matches...');
-    const remainingMatches = this.matches.filter(match => !match.completed);
-    console.log(`Found ${remainingMatches.length} matches to simulate`);
-    
-    for (const match of remainingMatches) {
-      console.log(`\n=== Simulating match: ${match.team1} vs ${match.team2} ===`);
+      console.log(`\n=== Simulating ${team1} vs ${team2} ===`);
       
-      // Simulate the series
-      const { score1, score2 } = this.simulateSeries(match.team1, match.team2);
+      // Simulate the best-of-3 series
+      const { score1, score2 } = this.simulateSeries(team1, team2);
       
-      const simulatedMatch = {
-        ...match,
+      // Mark the match as completed with the simulated scores
+      match.completed = true;
+      match.score1 = score1;
+      match.score2 = score2;
+      
+      // Calculate points based on series result
+      let team1Points = 0;
+      let team2Points = 0;
+      
+      if (score1 === 2 && score2 === 0) {
+        // Team 1 wins 2-0 (sweep)
+        team1Points = this.constructor.POINTS_SWEEP_WIN;  // 75 points
+        team2Points = this.constructor.POINTS_SWEEP_LOSS;  // 45 points
+      } else if (score1 === 0 && score2 === 2) {
+        // Team 2 wins 2-0 (sweep)
+        team1Points = this.constructor.POINTS_SWEEP_LOSS;  // 45 points
+        team2Points = this.constructor.POINTS_SWEEP_WIN;   // 75 points
+      } else if (score1 === 2 && score2 === 1) {
+        // Team 1 wins 2-1
+        team1Points = this.constructor.POINTS_WIN * 2 + this.constructor.POINTS_LOSS;  // 2 wins + 1 loss = 65 points
+        team2Points = this.constructor.POINTS_WIN + this.constructor.POINTS_LOSS * 2;  // 1 win + 2 losses = 55 points
+      } else if (score1 === 1 && score2 === 2) {
+        // Team 2 wins 2-1
+        team1Points = this.constructor.POINTS_WIN + this.constructor.POINTS_LOSS * 2;  // 1 win + 2 losses = 55 points
+        team2Points = this.constructor.POINTS_WIN * 2 + this.constructor.POINTS_LOSS;  // 2 wins + 1 loss = 65 points
+      }
+      
+      // Update the match with points
+      match.team1Points = team1Points;
+      match.team2Points = team2Points;
+      
+      console.log(`Series result: ${team1} ${score1}-${score2} ${team2} (${team1Points}-${team2Points} pts)`);
+      
+      // Add to simulated matches
+      simulatedMatches.push({
+        team1,
+        team2,
         score1,
         score2,
-        completed: true
-      };
+        team1Points,
+        team2Points,
+        isSweep: score1 === 0 || score2 === 0
+      });
       
-      simulatedMatches.push(simulatedMatch);
-      this.updateStandings(results, simulatedMatch);
+      // Update standings with the match result
+      this.updateStandings(this.standings, match);
     }
-
-    // Apply tiebreakers to each group
-    console.log('Applying tiebreakers...');
-    const finalStandings = {};
-    for (const [group, teams] of Object.entries(results)) {
-      finalStandings[group] = this.applyTiebreakers(teams);
+    
+    // Apply tiebreakers to all groups
+    for (const [group, teams] of Object.entries(this.standings)) {
+      this.standings[group] = this.applyTiebreakers(teams);
     }
-
+    
     return {
-      standings: finalStandings,
+      standings: this.standings,
       simulatedMatches
     };
   }
@@ -496,6 +508,8 @@ class RT25KSimulator {
 
   static get POINTS_WIN() { return 25; }
   static get POINTS_LOSS() { return 15; }
+  static get POINTS_SWEEP_WIN() { return 75; }
+  static get POINTS_SWEEP_LOSS() { return 45; }
 }
 
 module.exports = {
