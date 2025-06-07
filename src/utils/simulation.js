@@ -184,16 +184,37 @@ class RT25KSimulator {
 
   getAdjustedPower(teamName) {
     const team = this.teamData[teamName];
-    if (!team) return MIN_POWER;
+    if (!team) {
+      console.warn(`Team ${teamName} not found in team data`);
+      return MIN_POWER;
+    }
     
-    // Base power adjusted by activity level
-    let adjustedPower = team.power * (1 + team.activity);
+    // Base power from points (ensure it's a number)
+    const points = Number(team.points) || 0;
+    let basePower = points * BASE_POWER_MULTIPLIER;
     
-    // Add some randomness (up to ±RANDOMNESS_FACTOR%)
+    // Ensure base power is at least MIN_POWER
+    basePower = Math.max(MIN_POWER, basePower);
+    
+    // Get activity level based on games played
+    const activityLevel = this.getActivityLevel(team.gamesPlayed || 0);
+    const activityMultiplier = ACTIVITY_LEVELS[activityLevel]?.multiplier || 0.1;
+    
+    // Apply activity multiplier
+    let adjustedPower = basePower * activityMultiplier;
+    
+    // Add some randomness (up to ±15%)
     const randomness = 1 + (Math.random() * 2 - 1) * RANDOMNESS_FACTOR;
-    adjustedPower *= randomness;
+    adjustedPower = adjustedPower * randomness;
     
-    return Math.max(adjustedPower, MIN_POWER);
+    // Ensure power is within bounds
+    adjustedPower = Math.max(MIN_POWER, Math.min(1.0, adjustedPower));
+    
+    console.log(`Team ${teamName}: ${points} pts, ${team.gamesPlayed || 0} games, ` +
+                `activity: ${activityLevel} (x${activityMultiplier}), ` +
+                `base: ${basePower.toFixed(2)}, final: ${adjustedPower.toFixed(2)}`);
+    
+    return adjustedPower;
   }
 
   simulateGame(teamA, teamB) {
