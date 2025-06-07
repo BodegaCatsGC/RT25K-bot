@@ -200,11 +200,39 @@ class RT25KSimulator {
     const aPower = this.getAdjustedPower(teamA);
     const bPower = this.getAdjustedPower(teamB);
     const total = aPower + bPower;
+    
+    // Ensure we have valid power values
+    if (total <= 0) {
+      console.warn(`Invalid power values: ${teamA}=${aPower}, ${teamB}=${bPower}. Using equal chances.`);
+      return Math.random() < 0.5 ? teamA : teamB;
+    }
+    
     const roll = Math.random() * total;
+    const winner = roll < aPower ? teamA : teamB;
     
-    console.log(`Simulating ${teamA} (${aPower.toFixed(2)}) vs ${teamB} (${bPower.toFixed(2)}) - Roll: ${roll.toFixed(2)}`);
+    console.log(`Simulating ${teamA} (${aPower.toFixed(2)}) vs ${teamB} (${bPower.toFixed(2)}) - Roll: ${roll.toFixed(2)} - Winner: ${winner}`);
     
-    return roll < aPower ? teamA : teamB;
+    return winner;
+  }
+
+  simulateSeries(team1, team2) {
+    console.log(`\n=== Starting series: ${team1} vs ${team2} ===`);
+    let score1 = 0, score2 = 0;
+    
+    // Simulate best of 3 series
+    while (score1 < 2 && score2 < 2) {
+      const winner = this.simulateGame(team1, team2);
+      if (winner === team1) {
+        score1++;
+        console.log(`Game ${score1 + score2} winner: ${team1} (${score1}-${score2})`);
+      } else {
+        score2++;
+        console.log(`Game ${score1 + score2} winner: ${team2} (${score1}-${score2})`);
+      }
+    }
+    
+    console.log(`=== Series result: ${team1} ${score1}-${score2} ${team2} ===\n`);
+    return { score1, score2 };
   }
 
   simulateRemainingMatches() {
@@ -246,17 +274,10 @@ class RT25KSimulator {
     console.log(`Found ${remainingMatches.length} matches to simulate`);
     
     for (const match of remainingMatches) {
-      console.log(`Simulating match: ${match.team1} vs ${match.team2}`);
+      console.log(`\n=== Simulating match: ${match.team1} vs ${match.team2} ===`);
       
-      // Simulate best of 3 series
-      let score1 = 0, score2 = 0;
-      while (score1 < 2 && score2 < 2) {
-        const winner = this.simulateGame(match.team1, match.team2);
-        if (winner === match.team1) score1++;
-        else score2++;
-      }
-      
-      console.log(`Simulated result: ${match.team1} ${score1}-${score2} ${match.team2}`);
+      // Simulate the series
+      const { score1, score2 } = this.simulateSeries(match.team1, match.team2);
       
       const simulatedMatch = {
         ...match,
@@ -271,12 +292,13 @@ class RT25KSimulator {
 
     // Apply tiebreakers to each group
     console.log('Applying tiebreakers...');
-    Object.values(results).forEach(group => {
-      this.applyTiebreakers(group);
-    });
+    const finalStandings = {};
+    for (const [group, teams] of Object.entries(results)) {
+      finalStandings[group] = this.applyTiebreakers(teams);
+    }
 
     return {
-      standings: results,
+      standings: finalStandings,
       simulatedMatches
     };
   }
