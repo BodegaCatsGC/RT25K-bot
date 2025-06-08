@@ -22,13 +22,34 @@ const ALLOWED_TEAMS = [
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('simulate')
-    .setDescription('Simulate the remaining matches and show projected results'),
+    .setDescription('Simulate the remaining matches and show projected results')
+    .addStringOption(option =>
+      option.setName('team')
+        .setDescription('Filter results by team (optional)')
+        .setRequired(false)
+        .setAutocomplete(true)),
+
+  async autocomplete(interaction) {
+    const focusedValue = interaction.options.getFocused().toLowerCase();
+    const filtered = ALLOWED_TEAMS
+      .filter(team => team.toLowerCase().includes(focusedValue))
+      .slice(0, 25); // Discord limit for autocomplete options
+    
+    await interaction.respond(
+      filtered.map(team => ({
+        name: team,
+        value: team
+      }))
+    );
+  },
 
   async execute(interaction) {
     try {
       console.log('Simulate command started');
       await interaction.deferReply();
 
+      const teamFilter = interaction.options.getString('team');
+      
       console.log('Fetching available sheets...');
       const sheets = await getAvailableSheets();
       
@@ -60,6 +81,11 @@ module.exports = {
       
       for (const sheet of teamSheets) {
         try {
+          // If team filter is set, only process that team's schedule
+          if (teamFilter && sheet.title !== teamFilter) {
+            continue;
+          }
+          
           console.log(`Processing sheet: ${sheet.title}`);
           const teamSchedule = await getSchedule({ sheetName: sheet.title });
           console.log(`Found ${teamSchedule.length} matches in ${sheet.title}`);
@@ -93,25 +119,33 @@ module.exports = {
 
       try {
         console.log('Initializing simulator...');
-        console.log('Standings data:', JSON.stringify(standings, null, 2));
-        console.log('Matches data:', JSON.stringify(allMatches.slice(0, 2), null, 2)); // Log first 2 matches
-        
         const simulator = new RT25KSimulator(standings, allMatches);
         
         console.log('Running simulation...');
         const result = simulator.simulateRemainingMatches();
-        console.log('Simulation result:', JSON.stringify({
-          standings: result.standings ? '[...]' : 'undefined',
-          simulatedMatches: result.simulatedMatches ? `[${result.simulatedMatches.length} matches]` : 'undefined'
-        }, null, 2));
         
-        const { standings: finalStandings, simulatedMatches } = result;
+        let { standings: finalStandings, simulatedMatches } = result;
+        
+        // If team filter is set, only show matches involving that team
+        if (teamFilter) {
+          simulatedMatches = simulatedMatches.filter(match => 
+            match.team1 === teamFilter || match.team2 === teamFilter
+          );
+          
+          if (simulatedMatches.length === 0) {
+            return interaction.editReply(`❌ No simulated matches found for ${teamFilter}.`);
+          }
+        }
         
         // Create and send the embed
         const embed = new EmbedBuilder()
-          .setTitle('🎮 Simulated Match Results')
+          .setTitle(teamFilter 
+            ? `🎮 Simulated Match Results for ${teamFilter}` 
+            : '🎮 Simulated Match Results')
           .setColor('#0099ff')
-          .setDescription('Results of simulated remaining matches:')
+          .setDescription(teamFilter 
+            ? `Results of simulated matches for ${teamFilter}:`
+            : 'Results of simulated remaining matches:')
           .setTimestamp();
 
         if (simulatedMatches.length > 0) {
@@ -148,8 +182,14 @@ module.exports = {
             }
 
             
-            // Sort teams alphabetically
-            const sortedTeams = Object.keys(teamMatches).sort();
+            // Sort teams alphabetically, or use the filtered team if specified
+            const sortedTeams = teamFilter 
+              ? [teamFilter].filter(t => teamMatches[t])
+              : Object.keys(teamMatches).sort();
+            
+            if (sortedTeams.length === 0) {
+              return interaction.editReply('❌ No valid team data found for the simulation.');
+            }
             
             // Process each team's matches
             for (const team of sortedTeams) {
@@ -208,6 +248,12 @@ module.exports = {
               }
             }
 
+            // If we filtered by team, add a note about the full simulation
+            if (teamFilter) {
+              embed.setFooter({
+                text: `Note: Showing only ${teamFilter}'s matches. Use /simulate without a team to see all matches.`
+              });
+            }
 
             // Calculate total points earned in simulation for each team
             const pointsEarned = {};
@@ -244,32 +290,31 @@ module.exports = {
                 });
               } catch (err) {
                 console.error('Error adding points field:', err);
-                // Continue without points if we can't add them
               }
             }
+
+            await interaction.editReply({ embeds: [embed] });
+            
           } catch (error) {
-            console.error('Error processing simulation results:', error);
-            throw new Error(`Error processing simulation results: ${error.message}`);
+            console.error('Error formatting simulation results:', error);
+            await interaction.editReply('❌ An error occurred while formatting the simulation results.');
           }
         } else {
-          embed.setDescription('No remaining matches to simulate!');
+          await interaction.editReply('❌ No matches were simulated.');
         }
-
-        console.log('Sending response...');
-        await interaction.editReply({ embeds: [embed] });
-        console.log('Response sent successfully');
-
-      } catch (simError) {
-        console.error('Error during simulation:', simError);
-        throw new Error(`Simulation error: ${simError.message}`);
+        
+      } catch (error) {
+        console.error('Error in simulation:', error);
+        await interaction.editReply('❌ An error occurred during simulation. Please try again later.');
       }
-
+      
     } catch (error) {
       console.error('Error in simulate command:', error);
-      await interaction.editReply({
-        content: `❌ An error occurred: ${error.message || 'Unknown error'}`,
-        ephemeral: true
-      });
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply('❌ An error occurred while processing the command.');
+      } else {
+        await interaction.editReply('❌ An error occurred while processing the command.');
+      }
     }
   }
 };
