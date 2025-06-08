@@ -167,15 +167,26 @@ class RT25KSimulator {
           });
         }
         
-        matches.push({
+        // If the match is completed but we don't have scores, try to get them from seriesScore
+        if (isCompleted && score1 === 0 && score2 === 0 && match.seriesScore) {
+          const [s1, s2] = match.seriesScore.split('-').map(Number);
+          if (!isNaN(s1) && !isNaN(s2)) {
+            score1 = s1;
+            score2 = s2;
+          }
+        }
+        
+        const matchObj = {
           team1: match.homeTeam,
           team2: match.awayTeam,
           score1: score1,
           score2: score2,
-          group: 'DefaultGroup',
+          group: match.group || 'DefaultGroup',
           completed: isCompleted,
           originalData: match
-        });
+        };
+        
+        matches.push(matchObj);
         
       } catch (error) {
         console.error('Error processing match:', match, error);
@@ -265,9 +276,13 @@ class RT25KSimulator {
     
     // Process each match in the schedule
     for (const match of this.matches) {
-      if (match.completed) continue;
+      if (match.completed) {
+        console.log(`Skipping completed match: ${match.team1} ${match.score1}-${match.score2} ${match.team2}`);
+        continue;
+      }
       
-      const { team1, team2, score1 = 0, score2 = 0 } = match;
+      const { team1, team2 } = match;
+      let { score1 = 0, score2 = 0 } = match;
       
       // Ensure both teams exist in our data
       if (!this.teamData[team1] || !this.teamData[team2]) {
@@ -277,71 +292,68 @@ class RT25KSimulator {
       
       console.log(`\n=== Simulating ${team1} (${score1}) vs ${team2} (${score2}) ===`);
       
-      // If series is already completed, skip it
+      // If series is already completed, skip it (shouldn't happen due to the completed check above)
       if (score1 >= 2 || score2 >= 2) {
-        console.log(`Series already completed: ${team1} ${score1}-${score2} ${team2}`);
+        console.log(`Series already completed: ${team1} ${score1}-${score2} ${match.team2}`);
+        match.completed = true;
         continue;
       }
-      
-      // Simulate only the remaining games needed to complete the series
-      let simScore1 = score1;
-      let simScore2 = score2;
       
       console.log(`Simulating remaining games in series (current: ${score1}-${score2})`);
       
       // Simulate games until one team gets 2 wins
-      while (simScore1 < 2 && simScore2 < 2) {
+      while (score1 < 2 && score2 < 2) {
         const winner = this.simulateGame(team1, team2);
         
         if (winner === team1) {
-          simScore1++;
+          score1++;
         } else {
-          simScore2++;
+          score2++;
         }
         
-        console.log(`Game ${simScore1 + simScore2}: ${team1} ${simScore1}-${simScore2} ${team2}`);
+        console.log(`Game ${score1 + score2}: ${team1} ${score1}-${score2} ${team2}`);
       }
       
       // Calculate points based on the final series result
       let team1Points = 0;
       let team2Points = 0;
       
-      if (simScore1 === 2 && simScore2 === 0) {
+      if (score1 === 2 && score2 === 0) {
         // Team 1 wins 2-0 (sweep)
         team1Points = this.constructor.POINTS_SWEEP_WIN;  // 75 points
         team2Points = this.constructor.POINTS_SWEEP_LOSS;  // 45 points
-      } else if (simScore1 === 0 && simScore2 === 2) {
+      } else if (score1 === 0 && score2 === 2) {
         // Team 2 wins 2-0 (sweep)
         team1Points = this.constructor.POINTS_SWEEP_LOSS;  // 45 points
         team2Points = this.constructor.POINTS_SWEEP_WIN;   // 75 points
-      } else if (simScore1 === 2 && simScore2 === 1) {
+      } else if (score1 === 2 && score2 === 1) {
         // Team 1 wins 2-1
         team1Points = this.constructor.POINTS_WIN * 2 + this.constructor.POINTS_LOSS;  // 2 wins + 1 loss = 65 points
         team2Points = this.constructor.POINTS_WIN + this.constructor.POINTS_LOSS * 2;  // 1 win + 2 losses = 55 points
-      } else if (simScore1 === 1 && simScore2 === 2) {
+      } else if (score1 === 1 && score2 === 2) {
         // Team 2 wins 2-1
         team1Points = this.constructor.POINTS_WIN + this.constructor.POINTS_LOSS * 2;  // 1 win + 2 losses = 55 points
         team2Points = this.constructor.POINTS_WIN * 2 + this.constructor.POINTS_LOSS;  // 2 wins + 1 loss = 65 points
       }
       
       // Update the match with the final scores and points
-      match.score1 = simScore1;
-      match.score2 = simScore2;
+      match.score1 = score1;
+      match.score2 = score2;
       match.team1Points = team1Points;
       match.team2Points = team2Points;
       match.completed = true;
       
-      console.log(`Series result: ${team1} ${simScore1}-${simScore2} ${team2} (${team1Points}-${team2Points} pts)`);
+      console.log(`Series result: ${team1} ${score1}-${score2} ${team2} (${team1Points}-${team2Points} pts)`);
       
       // Add to simulated matches
       simulatedMatches.push({
         team1,
         team2,
-        score1: simScore1,
-        score2: simScore2,
+        score1,
+        score2,
         team1Points,
         team2Points,
-        isSweep: simScore1 === 0 || simScore2 === 0
+        isSweep: score1 === 0 || score2 === 0
       });
       
       // Update standings with the match result
