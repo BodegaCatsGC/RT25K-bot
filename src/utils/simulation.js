@@ -452,58 +452,86 @@ class RT25KSimulator {
   }
 
   applyTiebreakers(teams) {
-    console.log('Applying tiebreakers to group with teams:', teams.map(t => t.team).join(', '));
-    
-    if (!teams || !Array.isArray(teams)) {
-      console.error('Invalid teams data in applyTiebreakers:', teams);
+    // Ensure teams is an array
+    if (!Array.isArray(teams)) {
+      console.warn('applyTiebreakers called with non-array input:', teams);
       return [];
     }
 
-    // First, sort by points (primary)
-    teams.sort((a, b) => (b.points || 0) - (a.points || 0));
+    // If there's only one team, return it as is
+    if (teams.length <= 1) {
+      return [...teams];
+    }
+
+    console.log('Applying tiebreakers to group with teams:', teams.map(t => t.team).join(', '));
+    
+    // 1. First sort by Total Points (descending)
+    const sorted = [...teams].sort((a, b) => (b.points || 0) - (a.points || 0));
     
     // Group teams by points
-    const grouped = {};
-    teams.forEach(team => {
-      const points = team.points || 0;
-      if (!grouped[points]) {
-        grouped[points] = [];
-      }
-      grouped[points].push(team);
-    });
+    const groups = [];
+    let currentGroup = [];
+    let currentPoints = null;
     
-    // Process each group of teams with the same points
+    for (const team of sorted) {
+      if (team.points !== currentPoints) {
+        if (currentGroup.length > 0) {
+          groups.push(currentGroup);
+        }
+        currentGroup = [team];
+        currentPoints = team.points;
+      } else {
+        currentGroup.push(team);
+      }
+    }
+    
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup);
+    }
+    
+    // Apply tiebreakers to each group
     const result = [];
-    for (const [points, tiedTeams] of Object.entries(grouped)) {
-      if (tiedTeams.length === 1) {
-        result.push(...tiedTeams);
+    
+    for (const group of groups) {
+      if (group.length === 1) {
+        result.push(...group);
         continue;
       }
       
-      console.log(`Breaking tie between: ${tiedTeams.map(t => t.team).join(', ')}`);
+      console.log(`Breaking tie for teams with ${group[0].points} points:`, group.map(t => t.team).join(', '));
       
-      // Apply tiebreakers
-      // 1. Head-to-head
-      const headToHeadSorted = [...tiedTeams].sort((a, b) => {
-        const aWins = a.headToHead[b.team] || 0;
-        const bWins = b.headToHead[a.team] || 0;
-        return bWins - aWins; // More wins is better
+      // 2. Sort by Head-to-Head results
+      group.sort((a, b) => {
+        // Check direct head-to-head
+        const aWins = a.headToHead?.[b.team] || 0;
+        const bWins = b.headToHead?.[a.team] || 0;
+        
+        if (aWins !== bWins) {
+          return bWins - aWins; // More wins comes first
+        }
+        
+        // 3. If still tied, sort by Point Differential
+        const aDiff = a.pointDifferential || 0;
+        const bDiff = b.pointDifferential || 0;
+        
+        if (aDiff !== bDiff) {
+          return bDiff - aDiff; // Higher differential comes first
+        }
+        
+        // 4. If still tied, simulate a tiebreak game
+        const aPower = this.getAdjustedPower(a);
+        const bPower = this.getAdjustedPower(b);
+        return bPower - aPower; // Higher power comes first
       });
       
-      // 2. Point differential
-      const pdSorted = [...headToHeadSorted].sort((a, b) => 
-        (b.pointDifferential || 0) - (a.pointDifferential || 0)
-      );
-      
-      // 3. Random (if still tied)
-      const finalSorted = [...pdSorted].sort(() => Math.random() - 0.5);
-      
-      result.push(...finalSorted);
+      // Log the final order after all tiebreakers
+      console.log('Final order after tiebreakers:', group.map(t => t.team).join(' > '));
+      result.push(...group);
     }
     
     return result;
   }
-  
+
   breakTies(teams) {
     if (teams.length < 2) return;
     
