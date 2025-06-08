@@ -121,12 +121,25 @@ module.exports = {
             const pointsText = `(${match.team1Points}-${match.team2Points} pts)`;
             const sweepText = match.isSweep ? '🔥 SWEEP! ' : '';
             return `${sweepText}${scoreText} ${pointsText}`;
-          }).join('\n');
+          });
+
+          // Split results into chunks that fit within Discord's field value limit (1024 chars)
+          const CHUNK_SIZE = 25; // Number of matches per chunk
+          const resultChunks = [];
           
-          embed.addFields({
-            name: 'Simulated Matches',
-            value: matchResults || 'No matches needed simulation',
-            inline: false
+          for (let i = 0; i < matchResults.length; i += CHUNK_SIZE) {
+            const chunk = matchResults.slice(i, i + CHUNK_SIZE);
+            resultChunks.push(chunk.join('\n'));
+          }
+          
+          // Add each chunk as a separate field
+          resultChunks.forEach((chunk, index) => {
+            let name = index === 0 ? 'Simulated Matches' : `Matches (${index * CHUNK_SIZE + 1}-${Math.min((index + 1) * CHUNK_SIZE, matchResults.length)})`;
+            embed.addFields({
+              name,
+              value: chunk,
+              inline: false
+            });
           });
 
           // Calculate total points earned in simulation for each team
