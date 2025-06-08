@@ -344,18 +344,9 @@ class RT25KSimulator {
     
     const { team1, team2, score1, score2 } = match;
     
-    // Find teams in their respective groups
-    const findTeamInStandings = (teamName) => {
-      for (const group of Object.values(standings)) {
-        const team = group.find(t => t.team === teamName);
-        if (team) return team;
-      }
-      console.warn(`Team not found in any group: ${teamName}`);
-      return null;
-    };
-    
-    const team1Standing = findTeamInStandings(team1);
-    const team2Standing = findTeamInStandings(team2);
+    // Find teams in the standings
+    const team1Standing = this.findTeamInStandings(team1, standings);
+    const team2Standing = this.findTeamInStandings(team2, standings);
     
     if (!team1Standing || !team2Standing) {
       console.warn(`Could not update standings for match: ${team1} vs ${team2}`);
@@ -417,6 +408,25 @@ class RT25KSimulator {
       this.teamData[team2].points = team2Standing.points;
       this.teamData[team2].gamesPlayed = team2Standing.wins + team2Standing.losses;
     }
+  }
+
+  // Helper function to find a team in the standings
+  findTeamInStandings(teamName, standings) {
+    // If standings is an array, it's a flat list of teams
+    if (Array.isArray(standings)) {
+      return standings.find(team => team.team === teamName);
+    }
+    
+    // If standings is an object with group arrays, search through all groups
+    for (const group of Object.values(standings)) {
+      if (Array.isArray(group)) {
+        const team = group.find(t => t.team === teamName);
+        if (team) return team;
+      }
+    }
+    
+    console.warn(`Team not found in any group: ${teamName}`);
+    return null;
   }
 
   applyTiebreakers(teams) {
