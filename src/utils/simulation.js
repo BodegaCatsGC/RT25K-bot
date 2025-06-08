@@ -4,15 +4,15 @@
 const ACTIVITY_LEVELS = {
   active: {
     minGames: 5,    // Teams with 5+ games are considered active
-    multiplier: 1.0  // Full boost for active teams
+    multiplier: 1.2   // Increased from 1.0 to 1.2 (20% boost for active teams)
   },
   partial: {
     minGames: 2,    // Teams with 2-4 games are partially active
-    multiplier: 0.5  // Half boost for partially active teams
+    multiplier: 0.6  // Increased from 0.5 to 0.6 (slight boost for partially active teams)
   },
   inactive: {
     minGames: 0,    // Teams with 0-1 games are inactive
-    multiplier: 0.1  // Minimal boost for inactive teams
+    multiplier: 0.05 // Reduced from 0.1 to 0.05 (halved for inactive teams)
   }
 };
 
