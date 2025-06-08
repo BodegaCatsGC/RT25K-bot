@@ -1,6 +1,22 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getSchedule, getAvailableSheets } = require('../utils/googleSheets');
 
+// List of allowed team sheets - same as in simulate.js
+const ALLOWED_TEAMS = [
+  'Achieve Greatness',
+  'Bodega Cats',
+  'On Site',
+  'High Octane',
+  'Zero Tolerance',
+  'Zero Gaming',
+  'Before The Fame',
+  'Coatesville',
+  'Lights Out',
+  'Liquid Pro Am',
+  'Hitlist',
+  'Nobody Plays Harder'
+];
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('schedule')
@@ -14,25 +30,28 @@ module.exports = {
   async autocomplete(interaction) {
     try {
       const focusedValue = interaction.options.getFocused().toLowerCase();
-      const sheets = await getAvailableSheets();
+      console.log(`[Schedule] Autocomplete triggered for team: ${focusedValue}`);
       
-      // Filter out common sheet names and match against focused value
-      const teamSheets = sheets
-        .filter(sheet => {
-          const title = sheet.title.toLowerCase();
-          return !['standings', 'schedule', 'overall', 'template'].includes(title) && 
-                 title.includes(focusedValue);
-        })
+      // Filter and sort the teams based on the focused value
+      const filtered = ALLOWED_TEAMS
+        .filter(team => team.toLowerCase().includes(focusedValue))
+        .sort((a, b) => a.localeCompare(b)) // Sort alphabetically
         .slice(0, 25); // Discord limit for autocomplete options
       
+      console.log(`[Schedule] Sending ${filtered.length} autocomplete options`);
+      
       await interaction.respond(
-        teamSheets.map(sheet => ({
-          name: sheet.title,
-          value: sheet.title
+        filtered.map(team => ({
+          name: team,
+          value: team
         }))
       );
     } catch (error) {
-      console.error('Error in autocomplete:', error);
+      console.error('[Schedule] Error in autocomplete:', error);
+      // Send an empty array to prevent unhandled interaction errors
+      if (!interaction.responded) {
+        await interaction.respond([]).catch(console.error);
+      }
     }
   },
 
@@ -43,22 +62,17 @@ module.exports = {
       const teamFilter = interaction.options.getString('team')?.trim();
       
       if (!teamFilter) {
-        // If no team specified, list all available teams
-        const sheets = await getAvailableSheets();
-        const teamSheets = sheets
-          .filter(sheet => !['Standings', 'Schedule', 'Overall', 'Template'].includes(sheet.title))
-          .map(sheet => sheet.title);
-        
-        if (teamSheets.length === 0) {
-          return interaction.editReply('No team sheets found in the spreadsheet.');
-        }
-        
+        // If no team specified, show the list of allowed teams
         const embed = new EmbedBuilder()
           .setColor('#0099ff')
           .setTitle('Available Teams')
-          .setDescription('Use `/schedule team:TeamName` to view a team\'s schedule\n\n' +
-            teamSheets.map(team => `• ${team}`).join('\n'))
-          .setFooter({ text: `Total teams: ${teamSheets.length}` });
+          .setDescription('Please specify a team to see their schedule')
+          .addFields(
+            { 
+              name: 'Teams', 
+              value: ALLOWED_TEAMS.sort().join('\n') 
+            }
+          );
         
         return interaction.editReply({ embeds: [embed] });
       }
