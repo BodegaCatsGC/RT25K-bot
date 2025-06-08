@@ -116,57 +116,98 @@ module.exports = {
 
         if (simulatedMatches.length > 0) {
           try {
-            // Display simulated matches with scores and points
-            const matchResults = [];
+            // Group matches by team
+            const teamMatches = {};
             
-            // First, validate all match data
+            // First, validate all match data and group by team
             for (const match of simulatedMatches) {
               if (!match || !match.team1 || !match.team2 || match.score1 === undefined || match.score2 === undefined) {
                 console.error('Invalid match data:', JSON.stringify(match, null, 2));
                 throw new Error('Invalid match data received from simulation');
               }
               
-              const scoreText = `**${match.team1}** ${match.score1}-${match.score2} **${match.team2}**`;
-              const pointsText = `(${match.team1Points || 0}-${match.team2Points || 0} pts)`;
-              const sweepText = match.isSweep ? '🔥 SWEEP! ' : '';
-              matchResults.push(`${sweepText}${scoreText} ${pointsText}`);
+              // Add to team1's matches
+              if (!teamMatches[match.team1]) teamMatches[match.team1] = [];
+              teamMatches[match.team1].push({
+                opponent: match.team2,
+                score1: match.score1,
+                score2: match.score2,
+                points: match.team1Points,
+                isSweep: match.isSweep
+              });
+              
+              // Add to team2's matches
+              if (!teamMatches[match.team2]) teamMatches[match.team2] = [];
+              teamMatches[match.team2].push({
+                opponent: match.team1,
+                score1: match.score2,
+                score2: match.score1,
+                points: match.team2Points,
+                isSweep: match.isSweep && match.score2 === 0
+              });
             }
 
-            // Split results into chunks that fit within Discord's field value limit (1024 chars)
-            const CHUNK_SIZE = 15; // Reduced chunk size to be safe
-            const resultChunks = [];
             
-            for (let i = 0; i < matchResults.length; i += CHUNK_SIZE) {
-              const chunk = matchResults.slice(i, i + CHUNK_SIZE);
-              const chunkText = chunk.join('\n');
+            // Sort teams alphabetically
+            const sortedTeams = Object.keys(teamMatches).sort();
+            
+            // Process each team's matches
+            for (const team of sortedTeams) {
+              const teamMatchList = teamMatches[team];
+              let teamText = '';
+              let totalPoints = 0;
               
-              // Ensure chunk doesn't exceed Discord's limit
-              if (chunkText.length > 1000) { // Leave some buffer
-                console.warn(`Chunk ${i} length: ${chunkText.length} chars`);
-                // Split this chunk into smaller parts if needed
-                const half = Math.ceil(chunk.length / 2);
-                resultChunks.push(chunk.slice(0, half).join('\n'));
-                resultChunks.push(chunk.slice(half).join('\n'));
-              } else {
-                resultChunks.push(chunkText);
+              // Sort matches by opponent name for consistency
+              teamMatchList.sort((a, b) => a.opponent.localeCompare(b.opponent));
+              
+              // Format each match for this team
+              for (const match of teamMatchList) {
+                const scoreText = `vs ${match.opponent}: ${match.score1}-${match.score2}`;
+                const pointsText = `(${match.points} pts)`;
+                const sweepText = match.isSweep ? '🔥 ' : '';
+                teamText += `${sweepText}${scoreText} ${pointsText}\n`;
+                totalPoints += match.points || 0;
+              }
+              
+              // Add team's matches to embed
+              if (teamText.length > 0) {
+                // Add total points for the team
+                const teamHeader = `**${team}** (${totalPoints} total points):`;
+                teamText = `${teamHeader}\n${teamText}`;
+                
+                // Split if too long for a single field
+                if (teamText.length > 1000) {
+                  const half = Math.ceil(teamMatchList.length / 2);
+                  const firstHalf = teamMatchList.slice(0, half);
+                  const secondHalf = teamMatchList.slice(half);
+                  
+                  // Process first half
+                  let firstHalfText = `${teamHeader}\n`;
+                  firstHalfText += firstHalf.map(m => 
+                    `${m.isSweep ? '🔥 ' : ''}vs ${m.opponent}: ${m.score1}-${m.score2} (${m.points} pts)`
+                  ).join('\n');
+                  
+                  // Process second half
+                  let secondHalfText = '';
+                  secondHalfText += secondHalf.map(m => 
+                    `${m.isSweep ? '🔥 ' : ''}vs ${m.opponent}: ${m.score1}-${m.score2} (${m.points} pts)`
+                  ).join('\n');
+                  
+                  // Add both halves as separate fields
+                  embed.addFields(
+                    { name: `${team} (Part 1)`, value: firstHalfText, inline: false },
+                    { name: `${team} (Part 2)`, value: secondHalfText, inline: false }
+                  );
+                } else {
+                  embed.addFields({
+                    name: team,
+                    value: teamText,
+                    inline: false
+                  });
+                }
               }
             }
-            
-            // Add each chunk as a separate field
-            for (let i = 0; i < resultChunks.length; i++) {
-              const name = i === 0 ? 'Simulated Matches' : `Matches (cont'd ${i + 1})`;
-              try {
-                embed.addFields({
-                  name,
-                  value: resultChunks[i] || 'No match data',
-                  inline: false
-                });
-              } catch (err) {
-                console.error(`Error adding field ${i}:`, err);
-                console.error('Field value length:', resultChunks[i]?.length || 0);
-                throw err;
-              }
-            }
+
 
             // Calculate total points earned in simulation for each team
             const pointsEarned = {};
