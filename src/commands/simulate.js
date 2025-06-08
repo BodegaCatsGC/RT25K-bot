@@ -135,10 +135,76 @@ module.exports = {
         console.log('Initializing simulator...');
         const simulator = new RT25KSimulator(standings, allMatches);
         
-        console.log('Running simulation...');
-        const result = simulator.simulateRemainingMatches();
+        console.log('Running 3 simulations to get average results...');
+        const simulationRuns = 3;
+        let allSimulatedMatches = [];
+        let allFinalStandings = [];
         
-        let { standings: finalStandings, simulatedMatches } = result;
+        // Run simulation multiple times
+        for (let i = 0; i < simulationRuns; i++) {
+          console.log(`Running simulation ${i + 1}/${simulationRuns}...`);
+          const result = simulator.simulateRemainingMatches();
+          allSimulatedMatches.push(...result.simulatedMatches);
+          allFinalStandings.push(result.standings);
+        }
+        
+        // Process and average the results
+        const matchResults = {};
+        
+        // Aggregate match results
+        allSimulatedMatches.forEach(match => {
+          const key = `${match.team1}_${match.team2}`;
+          if (!matchResults[key]) {
+            matchResults[key] = {
+              team1: match.team1,
+              team2: match.team2,
+              score1: 0,
+              score2: 0,
+              team1Points: 0,
+              team2Points: 0,
+              count: 0
+            };
+          }
+          
+          const result = matchResults[key];
+          result.score1 += match.score1;
+          result.score2 += match.score2;
+          result.team1Points += match.team1Points;
+          result.team2Points += match.team2Points;
+          result.count++;
+        });
+        
+        // Calculate averages
+        const simulatedMatches = Object.values(matchResults).map(match => ({
+          team1: match.team1,
+          team2: match.team2,
+          score1: Math.round(match.score1 / match.count),
+          score2: Math.round(match.score2 / match.count),
+          team1Points: match.team1Points / match.count,
+          team2Points: match.team2Points / match.count,
+          isSweep: (match.score1 / match.count) === 2 || (match.score2 / match.count) === 2
+        }));
+        
+        // Calculate average standings
+        const summedStandings = {};
+        allFinalStandings.flat().forEach(standing => {
+          if (!summedStandings[standing.team]) {
+            summedStandings[standing.team] = { ...standing, totalPoints: 0 };
+          }
+          summedStandings[standing.team].totalPoints += standing.totalPoints;
+        });
+        
+        const finalStandings = Object.values(summedStandings).map(standing => ({
+          ...standing,
+          totalPoints: Math.round((standing.totalPoints / simulationRuns) * 10) / 10 // Round to 1 decimal
+        })).sort((a, b) => b.totalPoints - a.totalPoints);
+        
+        // Add position numbers
+        finalStandings.forEach((standing, index) => {
+          standing.position = index + 1;
+        });
+        
+        console.log(`Completed ${simulationRuns} simulations and averaged results`);
         
         // If team filter is set, only show matches involving that team
         if (teamFilter) {
