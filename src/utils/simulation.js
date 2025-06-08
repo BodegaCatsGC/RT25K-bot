@@ -7,11 +7,11 @@ const ACTIVITY_LEVELS = {
     multiplier: 1.2   // Increased from 1.0 to 1.2 (20% boost for active teams)
   },
   partial: {
-    minGames: 2,    // Teams with 2-4 games are partially active
+    minGames: 3,    // Teams with 3-4 games are partially active
     multiplier: 0.6  // Increased from 0.5 to 0.6 (slight boost for partially active teams)
   },
   inactive: {
-    minGames: 0,    // Teams with 0-1 games are inactive
+    minGames: 0,    // Teams with 0-2 games are inactive
     multiplier: 0.05 // Reduced from 0.1 to 0.05 (halved for inactive teams)
   }
 };
@@ -74,7 +74,7 @@ class RT25KSimulator {
     
     // Update activity levels and power based on games played
     Object.entries(this.teamData).forEach(([teamName, team]) => {
-      team.activity = this.getActivityLevel(team.gamesPlayed);
+      team.activity = this.getActivityLevel(teamName);
       team.power = Math.max(
         MIN_POWER,
         (Number(team.points) || 0) * BASE_POWER_MULTIPLIER * ACTIVITY_LEVELS[team.activity].multiplier
@@ -85,14 +85,24 @@ class RT25KSimulator {
   /**
    * Determine activity level based on games played
    */
-  getActivityLevel(gamesPlayed) {
-    if (gamesPlayed >= ACTIVITY_LEVELS.active.minGames) {
-      return 'active';
-    } else if (gamesPlayed >= ACTIVITY_LEVELS.partial.minGames) {
-      return 'partial';
-    } else {
+  getActivityLevel(teamName) {
+    const team = this.teamData[teamName];
+    if (!team) {
+      console.warn(`Team not found in teamData: ${teamName}`);
       return 'inactive';
     }
+    
+    // Use the pre-calculated activity level if available
+    if (team.activity) {
+      return team.activity;
+    }
+    
+    // Fallback to calculating based on games played
+    const gamesPlayed = team.gamesPlayed || 0;
+    
+    if (gamesPlayed >= 5) return 'active';      // 5+ games: Active
+    if (gamesPlayed >= 3) return 'partial';     // 3-4 games: Partial
+    return 'inactive';                          // 0-2 games: Inactive
   }
 
   prepareTeamData(standings) {
@@ -207,7 +217,7 @@ class RT25KSimulator {
     basePower = Math.max(MIN_POWER, basePower);
     
     // Get activity level based on games played
-    const activityLevel = this.getActivityLevel(team.gamesPlayed || 0);
+    const activityLevel = this.getActivityLevel(teamName);
     const activityMultiplier = ACTIVITY_LEVELS[activityLevel]?.multiplier || 0.1;
     
     // Apply activity multiplier
