@@ -115,64 +115,100 @@ module.exports = {
           .setTimestamp();
 
         if (simulatedMatches.length > 0) {
-          // Display simulated matches with scores and points
-          const matchResults = simulatedMatches.map(match => {
-            const scoreText = `**${match.team1}** ${match.score1}-${match.score2} **${match.team2}**`;
-            const pointsText = `(${match.team1Points}-${match.team2Points} pts)`;
-            const sweepText = match.isSweep ? '🔥 SWEEP! ' : '';
-            return `${sweepText}${scoreText} ${pointsText}`;
-          });
-
-          // Split results into chunks that fit within Discord's field value limit (1024 chars)
-          const CHUNK_SIZE = 25; // Number of matches per chunk
-          const resultChunks = [];
-          
-          for (let i = 0; i < matchResults.length; i += CHUNK_SIZE) {
-            const chunk = matchResults.slice(i, i + CHUNK_SIZE);
-            resultChunks.push(chunk.join('\n'));
-          }
-          
-          // Add each chunk as a separate field
-          resultChunks.forEach((chunk, index) => {
-            let name = index === 0 ? 'Simulated Matches' : `Matches (${index * CHUNK_SIZE + 1}-${Math.min((index + 1) * CHUNK_SIZE, matchResults.length)})`;
-            embed.addFields({
-              name,
-              value: chunk,
-              inline: false
-            });
-          });
-
-          // Calculate total points earned in simulation for each team
-          const pointsEarned = {};
-          
-          // Initialize all teams with 0 points earned
-          for (const team of standings) {
-            if (team.team) {
-              pointsEarned[team.team] = 0;
-            }
-          }
-          
-          // Calculate points from simulated matches
-          for (const match of simulatedMatches) {
-            pointsEarned[match.team1] = (pointsEarned[match.team1] || 0) + (match.team1Points || 0);
-            pointsEarned[match.team2] = (pointsEarned[match.team2] || 0) + (match.team2Points || 0);
-          }
-          
-          // Create a list of teams that earned points in the simulation
-          const teamsWithPoints = Object.entries(pointsEarned)
-            .filter(([_, points]) => points > 0)
-            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-          
-          if (teamsWithPoints.length > 0) {
-            const pointsList = teamsWithPoints
-              .map(([team, points]) => `• ${team}: +${points} pts`)
-              .join('\n');
+          try {
+            // Display simulated matches with scores and points
+            const matchResults = [];
+            
+            // First, validate all match data
+            for (const match of simulatedMatches) {
+              if (!match || !match.team1 || !match.team2 || match.score1 === undefined || match.score2 === undefined) {
+                console.error('Invalid match data:', JSON.stringify(match, null, 2));
+                throw new Error('Invalid match data received from simulation');
+              }
               
-            embed.addFields({
-              name: 'Points Earned in Simulation',
-              value: pointsList,
-              inline: false
-            });
+              const scoreText = `**${match.team1}** ${match.score1}-${match.score2} **${match.team2}**`;
+              const pointsText = `(${match.team1Points || 0}-${match.team2Points || 0} pts)`;
+              const sweepText = match.isSweep ? '🔥 SWEEP! ' : '';
+              matchResults.push(`${sweepText}${scoreText} ${pointsText}`);
+            }
+
+            // Split results into chunks that fit within Discord's field value limit (1024 chars)
+            const CHUNK_SIZE = 15; // Reduced chunk size to be safe
+            const resultChunks = [];
+            
+            for (let i = 0; i < matchResults.length; i += CHUNK_SIZE) {
+              const chunk = matchResults.slice(i, i + CHUNK_SIZE);
+              const chunkText = chunk.join('\n');
+              
+              // Ensure chunk doesn't exceed Discord's limit
+              if (chunkText.length > 1000) { // Leave some buffer
+                console.warn(`Chunk ${i} length: ${chunkText.length} chars`);
+                // Split this chunk into smaller parts if needed
+                const half = Math.ceil(chunk.length / 2);
+                resultChunks.push(chunk.slice(0, half).join('\n'));
+                resultChunks.push(chunk.slice(half).join('\n'));
+              } else {
+                resultChunks.push(chunkText);
+              }
+            }
+            
+            // Add each chunk as a separate field
+            for (let i = 0; i < resultChunks.length; i++) {
+              const name = i === 0 ? 'Simulated Matches' : `Matches (cont'd ${i + 1})`;
+              try {
+                embed.addFields({
+                  name,
+                  value: resultChunks[i] || 'No match data',
+                  inline: false
+                });
+              } catch (err) {
+                console.error(`Error adding field ${i}:`, err);
+                console.error('Field value length:', resultChunks[i]?.length || 0);
+                throw err;
+              }
+            }
+
+            // Calculate total points earned in simulation for each team
+            const pointsEarned = {};
+            
+            // Initialize all teams with 0 points earned
+            for (const team of standings) {
+              if (team?.team) {
+                pointsEarned[team.team] = 0;
+              }
+            }
+            
+            // Calculate points from simulated matches
+            for (const match of simulatedMatches) {
+              if (!match.team1 || !match.team2) continue;
+              pointsEarned[match.team1] = (pointsEarned[match.team1] || 0) + (match.team1Points || 0);
+              pointsEarned[match.team2] = (pointsEarned[match.team2] || 0) + (match.team2Points || 0);
+            }
+            
+            // Create a list of teams that earned points in the simulation
+            const teamsWithPoints = Object.entries(pointsEarned)
+              .filter(([_, points]) => points > 0)
+              .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+            
+            if (teamsWithPoints.length > 0) {
+              const pointsList = teamsWithPoints
+                .map(([team, points]) => `• ${team}: +${points} pts`)
+                .join('\n');
+                
+              try {
+                embed.addFields({
+                  name: 'Points Earned in Simulation',
+                  value: pointsList,
+                  inline: false
+                });
+              } catch (err) {
+                console.error('Error adding points field:', err);
+                // Continue without points if we can't add them
+              }
+            }
+          } catch (error) {
+            console.error('Error processing simulation results:', error);
+            throw new Error(`Error processing simulation results: ${error.message}`);
           }
         } else {
           embed.setDescription('No remaining matches to simulate!');
