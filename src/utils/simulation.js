@@ -340,7 +340,7 @@ class RT25KSimulator {
   }
 
   updateStandings(standings, match) {
-    if (!match.completed) return;
+    if (!match || !match.completed) return;
     
     const { team1, team2, score1, score2 } = match;
     
@@ -353,30 +353,52 @@ class RT25KSimulator {
       return;
     }
     
+    // Initialize headToHead objects if they don't exist
+    team1Standing.headToHead = team1Standing.headToHead || {};
+    team2Standing.headToHead = team2Standing.headToHead || {};
+    
     // Store previous points for logging
-    const team1PrevPoints = team1Standing.points;
-    const team2PrevPoints = team2Standing.points;
+    const team1PrevPoints = team1Standing.points || 0;
+    const team2PrevPoints = team2Standing.points || 0;
+    
+    // Initialize points if they don't exist
+    team1Standing.points = team1Standing.points || 0;
+    team2Standing.points = team2Standing.points || 0;
     
     // Update wins/losses and points based on series result
     if (score1 > score2) {
       // Team 1 wins the series
-      team1Standing.wins++;
-      team2Standing.losses++;
+      team1Standing.wins = (team1Standing.wins || 0) + 1;
+      team2Standing.losses = (team2Standing.losses || 0) + 1;
       
-      // Add points: 25 for win, 15 for loss
-      team1Standing.points += this.constructor.POINTS_WIN;
-      team2Standing.points += this.constructor.POINTS_LOSS;
+      // Add points based on series result
+      if (score2 === 0) {
+        // 2-0 sweep
+        team1Standing.points += this.constructor.POINTS_SWEEP_WIN;
+        team2Standing.points += this.constructor.POINTS_SWEEP_LOSS;
+      } else {
+        // 2-1 result
+        team1Standing.points += this.constructor.POINTS_WIN * 2 + this.constructor.POINTS_LOSS;
+        team2Standing.points += this.constructor.POINTS_WIN + this.constructor.POINTS_LOSS * 2;
+      }
       
       // Update head-to-head
       team1Standing.headToHead[team2] = (team1Standing.headToHead[team2] || 0) + 1;
     } else {
       // Team 2 wins the series
-      team2Standing.wins++;
-      team1Standing.losses++;
+      team2Standing.wins = (team2Standing.wins || 0) + 1;
+      team1Standing.losses = (team1Standing.losses || 0) + 1;
       
-      // Add points: 25 for win, 15 for loss
-      team2Standing.points += this.constructor.POINTS_WIN;
-      team1Standing.points += this.constructor.POINTS_LOSS;
+      // Add points based on series result
+      if (score1 === 0) {
+        // 0-2 sweep
+        team1Standing.points += this.constructor.POINTS_SWEEP_LOSS;
+        team2Standing.points += this.constructor.POINTS_SWEEP_WIN;
+      } else {
+        // 1-2 result
+        team1Standing.points += this.constructor.POINTS_WIN + this.constructor.POINTS_LOSS * 2;
+        team2Standing.points += this.constructor.POINTS_WIN * 2 + this.constructor.POINTS_LOSS;
+      }
       
       // Update head-to-head
       team2Standing.headToHead[team1] = (team2Standing.headToHead[team1] || 0) + 1;
