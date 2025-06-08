@@ -77,6 +77,23 @@ for (const file of commandFiles) {
 
 // Handle interactions
 client.on(Events.InteractionCreate, async interaction => {
+  // Handle autocomplete interactions
+  if (interaction.isAutocomplete()) {
+    const command = client.commands.get(interaction.commandName);
+    
+    if (!command?.autocomplete) {
+      logger.error(`No autocomplete handler found for command: ${interaction.commandName}`);
+      return;
+    }
+
+    try {
+      await command.autocomplete(interaction);
+    } catch (error) {
+      logger.error(`Error executing autocomplete for ${interaction.commandName}:`, error);
+    }
+    return;
+  }
+
   // Handle slash commands only
   if (!interaction.isChatInputCommand()) return;
 

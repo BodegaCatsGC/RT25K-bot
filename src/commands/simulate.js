@@ -30,17 +30,31 @@ module.exports = {
         .setAutocomplete(true)),
 
   async autocomplete(interaction) {
-    const focusedValue = interaction.options.getFocused().toLowerCase();
-    const filtered = ALLOWED_TEAMS
-      .filter(team => team.toLowerCase().includes(focusedValue))
-      .slice(0, 25); // Discord limit for autocomplete options
-    
-    await interaction.respond(
-      filtered.map(team => ({
-        name: team,
-        value: team
-      }))
-    );
+    try {
+      const focusedValue = interaction.options.getFocused().toLowerCase();
+      console.log(`Autocomplete triggered for team: ${focusedValue}`);
+      
+      // Filter and sort the teams based on the focused value
+      const filtered = ALLOWED_TEAMS
+        .filter(team => team.toLowerCase().includes(focusedValue))
+        .sort((a, b) => a.localeCompare(b)) // Sort alphabetically
+        .slice(0, 25); // Discord limit for autocomplete options
+      
+      console.log(`Sending ${filtered.length} autocomplete options`);
+      
+      await interaction.respond(
+        filtered.map(team => ({
+          name: team,
+          value: team
+        }))
+      );
+    } catch (error) {
+      console.error('Error in autocomplete:', error);
+      // Send an empty array to prevent unhandled interaction errors
+      if (!interaction.responded) {
+        await interaction.respond([]).catch(console.error);
+      }
+    }
   },
 
   async execute(interaction) {
