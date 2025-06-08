@@ -175,7 +175,7 @@ module.exports = {
         });
         
         // Calculate averages
-        const simulatedMatches = Object.values(matchResults).map(match => ({
+        let simulatedMatches = Object.values(matchResults).map(match => ({
           team1: match.team1,
           team2: match.team2,
           score1: Math.round(match.score1 / match.count),
