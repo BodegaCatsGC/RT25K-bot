@@ -102,7 +102,7 @@ class RT25KSimulator {
     /**
      * @param {string} teamA
      * @param {string} teamB
-     * @returns {string}
+     * @returns {{winner: string, scoreA: number, scoreB: number, gameScores: Array<{winner: string, loser: string}>}}
      */
     simulateGame(teamA, teamB) {
         const aPower = this.getAdjustedPower(teamA);
@@ -115,32 +115,41 @@ class RT25KSimulator {
     /**
      * @param {string} teamA
      * @param {string} teamB
-     * @returns {{winner: string, scoreA: number, scoreB: number}}
+     * @returns {{winner: string, scoreA: number, scoreB: number, gameScores: Array<{winner: string, loser: string}>}}
      */
     simulateSeries(teamA, teamB) {
         let scoreA = 0;
         let scoreB = 0;
+        const gameScores = [];
         const requiredWins = Math.ceil(DEFAULT_BEST_OF_SERIES / 2);
 
         while (scoreA < requiredWins && scoreB < requiredWins) {
             const winner = this.simulateGame(teamA, teamB);
-            if (winner === teamA) scoreA++;
-            else scoreB++;
+            if (winner === teamA) {
+                scoreA++;
+                gameScores.push({ winner: teamA, loser: teamB });
+            } else {
+                scoreB++;
+                gameScores.push({ winner: teamB, loser: teamA });
+            }
         }
 
         return {
             winner: scoreA > scoreB ? teamA : teamB,
             scoreA,
-            scoreB
+            scoreB,
+            gameScores
         };
     }
 
     /**
-     * @returns {SimulationResult}
+     * @returns {{standings: SimulationResult, simulatedMatches: Array<{team1: string, team2: string, score1: number, score2: number, gameScores: Array<{winner: string, loser: string}>}>}}
      */
     simulateRemainingMatches() {
         /** @type {SimulationResult} */
         const results = {};
+        /** @type {Array<{team1: string, team2: string, score1: number, score2: number, gameScores: Array<{winner: string, loser: string}>}>} */
+        const simulatedMatches = [];
 
         // Initialize group standings
         Object.entries(this.teamData).forEach(([teamName, data]) => {
@@ -187,14 +196,16 @@ class RT25KSimulator {
                     );
                     
                     if (!matchPlayed) {
-                        const { winner, scoreA, scoreB } = this.simulateSeries(teamA, teamB);
+                        const { winner, scoreA, scoreB, gameScores } = this.simulateSeries(teamA, teamB);
                         const simulatedMatch = {
                             team1: teamA,
                             team2: teamB,
                             score1: scoreA,
                             score2: scoreB,
+                            gameScores,
                             group
                         };
+                        simulatedMatches.push(simulatedMatch);
                         this.updateStandings(results, simulatedMatch);
                     }
                 }
@@ -223,7 +234,7 @@ class RT25KSimulator {
             });
         });
 
-        return results;
+        return { standings: results, simulatedMatches };
     }
 
     /**

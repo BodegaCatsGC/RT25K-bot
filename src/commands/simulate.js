@@ -162,6 +162,7 @@ module.exports = {
               score2: 0,
               team1Points: 0,
               team2Points: 0,
+              gameResults: [], // Store individual game results
               count: 0
             };
           }
@@ -171,6 +172,13 @@ module.exports = {
           result.score2 += match.score2;
           result.team1Points += match.team1Points;
           result.team2Points += match.team2Points;
+          
+          // Add game results
+          if (match.gameScores) {
+            if (!result.gameResults) result.gameResults = [];
+            result.gameResults.push(match.gameScores);
+          }
+          
           result.count++;
         });
         
@@ -182,7 +190,8 @@ module.exports = {
           score2: Math.round(match.score2 / match.count),
           team1Points: match.team1Points / match.count,
           team2Points: match.team2Points / match.count,
-          isSweep: (match.score1 / match.count) === 2 || (match.score2 / match.count) === 2
+          isSweep: (match.score1 / match.count) === 2 || (match.score2 / match.count) === 2,
+          gameResults: match.gameResults // Include game results
         }));
         
         // Calculate average standings
@@ -247,7 +256,8 @@ module.exports = {
                 score1: match.score1,
                 score2: match.score2,
                 points: match.team1Points,
-                isSweep: match.isSweep
+                isSweep: match.isSweep,
+                gameResults: match.gameResults // Include game results
               });
               
               // Add to team2's matches
@@ -257,7 +267,8 @@ module.exports = {
                 score1: match.score2,
                 score2: match.score1,
                 points: match.team2Points,
-                isSweep: match.isSweep && match.score2 === 0
+                isSweep: match.isSweep && match.score2 === 0,
+                gameResults: match.gameResults // Include game results
               });
             }
 
@@ -285,7 +296,8 @@ module.exports = {
                 const scoreText = `vs ${match.opponent}: ${match.score1}-${match.score2}`;
                 const pointsText = `(${match.points} pts)`;
                 const sweepText = match.isSweep ? '🔥 ' : '';
-                teamText += `${sweepText}${scoreText} ${pointsText}\n`;
+                const gameResultsText = match.gameResults ? ` (${match.gameResults.map(game => `${game.winner} d. ${game.loser}`).join(', ')})` : '';
+                teamText += `${sweepText}${scoreText} ${pointsText}${gameResultsText}\n`;
                 totalPoints += match.points || 0;
               }
               
@@ -304,13 +316,13 @@ module.exports = {
                   // Process first half
                   let firstHalfText = `${teamHeader}\n`;
                   firstHalfText += firstHalf.map(m => 
-                    `${m.isSweep ? '🔥 ' : ''}vs ${m.opponent}: ${m.score1}-${m.score2} (${m.points} pts)`
+                    `${m.isSweep ? '🔥 ' : ''}vs ${m.opponent}: ${m.score1}-${m.score2} (${m.points} pts)${m.gameResults ? ` (${m.gameResults.map(game => `${game.winner} d. ${game.loser}`).join(', ')})` : ''}`
                   ).join('\n');
                   
                   // Process second half
                   let secondHalfText = '';
                   secondHalfText += secondHalf.map(m => 
-                    `${m.isSweep ? '🔥 ' : ''}vs ${m.opponent}: ${m.score1}-${m.score2} (${m.points} pts)`
+                    `${m.isSweep ? '🔥 ' : ''}vs ${m.opponent}: ${m.score1}-${m.score2} (${m.points} pts)${m.gameResults ? ` (${m.gameResults.map(game => `${game.winner} d. ${game.loser}`).join(', ')})` : ''}`
                   ).join('\n');
                   
                   // Add both halves as separate fields
