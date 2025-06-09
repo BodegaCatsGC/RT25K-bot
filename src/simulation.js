@@ -6,6 +6,7 @@
  * @property {number} power
  * @property {number} activity
  * @property {string} group
+ * @property {number} gamesPlayed
  */
 
 /**
@@ -27,6 +28,7 @@
  * @property {number} mapDiff
  * @property {number} roundWins
  * @property {number} roundLosses
+ * @property {number} gamesPlayed
  */
 
 /**
@@ -54,13 +56,20 @@ class RT25KSimulator {
     /**
      * @param {string} sheetId
      * @param {string} sheetName
+     * @param {Array} standings - Array of team standings with gamesPlayed
      * @returns {Promise<void>}
      */
-    async loadTeamData(sheetId, sheetName) {
+    async loadTeamData(sheetId, sheetName, standings = []) {
         const doc = this.googleSheets.doc(sheetId);
         await doc.loadInfo();
         const sheet = doc.sheetsByTitle[sheetName];
         const rows = await sheet.getRows();
+
+        // Create a map of team name to games played from standings
+        const gamesPlayedMap = {};
+        standings.forEach(standing => {
+            gamesPlayedMap[standing.team] = standing.gamesPlayed || 0;
+        });
 
         this.teamData = rows.reduce((acc, row) => {
             const teamName = row.get('Team Name') || row.get('Team');
@@ -69,7 +78,8 @@ class RT25KSimulator {
             acc[teamName] = {
                 power: parseFloat(row.get('Power') || '0'),
                 activity: parseFloat(row.get('Activity') || '0'),
-                group: row.get('Group') || 'DefaultGroup'
+                group: row.get('Group') || 'DefaultGroup',
+                gamesPlayed: gamesPlayedMap[teamName] || 0
             };
             return acc;
         }, {});
@@ -97,22 +107,30 @@ class RT25KSimulator {
 
     /**
      * @param {string} teamName
-     * @returns {{basePower: number, activityBoost: number, finalPower: number}}
+     * @returns {{basePower: number, activityBoost: number, finalPower: number, gamesPlayed: number}}
      */
     getAdjustedPower(teamName) {
         const team = this.teamData[teamName];
-        if (!team) return { basePower: 0, activityBoost: 0, finalPower: 0 };
-        
-        // Calculate activity boost based on number of games played
-        const gamesPlayed = this.gamesPlayed[teamName] || 0;
+        if (!team) {
+            return {
+                basePower: 0,
+                activityBoost: 0,
+                finalPower: 0,
+                gamesPlayed: 0
+            };
+        }
+
+        const basePower = team.power;
+        const gamesPlayed = team.gamesPlayed || 0;
         const activityFactor = Math.min(gamesPlayed / GAMES_FOR_MAX_BOOST, 1.0);
-        const activityBoost = activityFactor * team.activity;
-        const finalPower = team.power * (1 + DEFAULT_BOOST_FACTOR * activityBoost);
-        
+        const activityBoost = activityFactor * team.activity * DEFAULT_BOOST_FACTOR;
+        const finalPower = basePower * (1 + activityBoost);
+
         return {
-            basePower: team.power,
-            activityBoost: activityBoost,
-            finalPower: finalPower
+            basePower,
+            activityBoost,
+            finalPower,
+            gamesPlayed
         };
     }
 
@@ -137,13 +155,13 @@ class RT25KSimulator {
                 teamA: {
                     power: aPower.basePower,
                     activity: this.teamData[teamA]?.activity || 0,
-                    games: this.gamesPlayed[teamA] || 0,
+                    games: aPower.gamesPlayed,
                     finalPower: aPower.finalPower.toFixed(2)
                 },
                 teamB: {
                     power: bPower.basePower,
                     activity: this.teamData[teamB]?.activity || 0,
-                    games: this.gamesPlayed[teamB] || 0,
+                    games: bPower.gamesPlayed,
                     finalPower: bPower.finalPower.toFixed(2)
                 }
             }
@@ -221,7 +239,8 @@ class RT25KSimulator {
                 losses: 0,
                 mapDiff: 0,
                 roundWins: 0,
-                roundLosses: 0
+                roundLosses: 0,
+                gamesPlayed: data.gamesPlayed || 0
             });
         });
 

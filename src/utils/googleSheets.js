@@ -33,13 +33,8 @@ const DEFAULT_COLUMN_MAPPING = {
   group: 0,           // Column A - Group
   position: 1,        // Column B - Position
   team: 2,            // Column C - Team
-  totalPoints: 7,     // Column H - Total Points (skipping D-G)
-  
-  // Alternative mapping if the above doesn't work
-  // group: 0,        // Column A - Group
-  // position: 1,     // Column B - Position
-  // team: 2,         // Column C - Team
-  // totalPoints: 2   // If totalPoints is in column C
+  gamesPlayed: 8,     // Column I - Games Played (GP)
+  totalPoints: 7,     // Column H - Total Points
 };
 
 /**
@@ -52,6 +47,7 @@ const DEFAULT_COLUMN_MAPPING = {
  *   position: string,
  *   team: string,
  *   totalPoints: number,
+ *   gamesPlayed: number,
  *   rank: number
  * }>>} Array of team standings with essential columns
  * @throws {Error} If there's an error fetching or processing the data
@@ -100,6 +96,7 @@ async function getStandings(options = {}) {
           group: rawData[columnMapping.group] !== undefined ? String(rawData[columnMapping.group]).trim() : '',
           position: rawData[columnMapping.position] !== undefined ? String(rawData[columnMapping.position]).trim() : '',
           team: rawData[columnMapping.team] !== undefined ? String(rawData[columnMapping.team]).trim() : '',
+          gamesPlayed: rawData[columnMapping.gamesPlayed] !== undefined ? parseInt(rawData[columnMapping.gamesPlayed]) || 0 : 0,
           totalPoints: rawData[columnMapping.totalPoints] !== undefined ? parseFloat(rawData[columnMapping.totalPoints]) || 0 : 0
         };
         

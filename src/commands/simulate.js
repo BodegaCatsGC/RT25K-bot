@@ -135,6 +135,9 @@ module.exports = {
         console.log('Initializing simulator...');
         const simulator = new RT25KSimulator(standings, allMatches);
         
+        console.log('Loading team data...');
+        await simulator.loadTeamData(process.env.GOOGLE_SHEETS_SPREADSHEET_ID, 'Team Data', standings);
+        
         console.log('Running 3 simulations to get average results...');
         const simulationRuns = 3;
         let allSimulatedMatches = [];
