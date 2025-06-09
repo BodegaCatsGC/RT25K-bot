@@ -64,7 +64,25 @@ module.exports = {
 
       const teamFilter = interaction.options.getString('team');
       
-      console.log('Fetching available sheets...');
+      // Get standings with games played
+      console.log('Fetching standings...');
+      const standings = await getStandings();
+      console.log('Standings loaded, count:', standings?.length);
+      
+      if (!standings || standings.length === 0) {
+        console.log('No standings data');
+        return interaction.editReply('❌ Could not load team standings.');
+      }
+
+      // Log sample standings data for debugging
+      console.log('Sample standings data:', standings.slice(0, 3).map(s => ({
+        team: s.team,
+        gamesPlayed: s.gamesPlayed,
+        totalPoints: s.totalPoints
+      })));
+
+      // Process team sheets to get matches
+      console.log('Processing team sheets...');
       const sheets = await getAvailableSheets();
       
       // Filter to only include allowed teams that exist in the sheets
@@ -75,20 +93,10 @@ module.exports = {
       console.log('Allowed team sheets found:', teamSheets.map(s => s.title));
 
       if (teamSheets.length === 0) {
-        console.log('No allowed team sheets found');
-        return interaction.editReply('❌ No valid team sheets found in the spreadsheet.');
+        console.log('No team sheets found');
+        return interaction.editReply('❌ No team sheets found.');
       }
 
-      console.log('Fetching standings...');
-      const standings = await getStandings();
-      console.log('Standings loaded, count:', standings?.length);
-      
-      if (!standings || standings.length === 0) {
-        console.log('No standings data');
-        return interaction.editReply('❌ Could not load team standings.');
-      }
-
-      // Get all matches from allowed team schedules
       console.log('Fetching team schedules...');
       let allMatches = [];
       const processedMatches = new Set();

@@ -108,7 +108,7 @@ class RT25KSimulator {
   prepareTeamData(standings) {
     const teamData = {};
     
-    console.log('Preparing team data from standings:', standings);
+    console.log('Preparing team data from standings:', standings.length, 'teams');
     
     for (const team of standings) {
       try {
@@ -117,14 +117,23 @@ class RT25KSimulator {
           continue;
         }
         
-        const points = Number(team.total_points) || 0;
-        const gamesPlayed = Number(team.games_played) || 0;
+        const points = Number(team.totalPoints) || 0;
+        const gamesPlayed = Number(team.gamesPlayed) || 0;
+        
+        // Calculate activity level based on games played
+        let activityLevel = 'inactive';
+        if (gamesPlayed >= 5) {
+          activityLevel = 'active';
+        } else if (gamesPlayed >= 3) {
+          activityLevel = 'partial';
+        }
         
         teamData[team.team] = {
           name: team.team,
           group: team.group || 'DefaultGroup',
           points: points,
           gamesPlayed: gamesPlayed,
+          activity: activityLevel,
           wins: 0,
           losses: 0,
           roundWins: 0,
@@ -134,8 +143,7 @@ class RT25KSimulator {
         };
         
         console.log(`Added team: ${team.team} (${team.group || 'No Group'}) - ` +
-                    `${points} pts, ${gamesPlayed} games, ` +
-                    `activity: ${teamData[team.team].activity}`);
+                    `${points} pts, ${gamesPlayed} games, activity: ${activityLevel}`);
       } catch (error) {
         console.error('Error processing team:', team, error);
       }
