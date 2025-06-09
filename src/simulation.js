@@ -35,6 +35,8 @@
 
 const DEFAULT_BOOST_FACTOR = 0.2;
 const DEFAULT_BEST_OF_SERIES = 5;
+const GAMES_FOR_MAX_BOOST = 5; // Number of games needed for maximum boost
+const MAX_BOOST_MULTIPLIER = 2.0; // Maximum boost multiplier (2.0 = 2x power)
 
 class RT25KSimulator {
     constructor(googleSheets) {
@@ -43,6 +45,8 @@ class RT25KSimulator {
         this.teamData = {};
         /** @type {MatchResult[]} */
         this.matches = [];
+        /** @type {Object.<string, number>} */
+        this.gamesPlayed = {}; // Track number of games played by each team
     }
 
     /**
@@ -96,7 +100,12 @@ class RT25KSimulator {
     getAdjustedPower(teamName) {
         const team = this.teamData[teamName];
         if (!team) return 0;
-        return team.power * (1 + DEFAULT_BOOST_FACTOR * team.activity);
+        
+        // Calculate activity boost based on number of games played
+        const gamesPlayed = this.gamesPlayed[teamName] || 0;
+        const activityBoost = Math.min(gamesPlayed / GAMES_FOR_MAX_BOOST, 1.0) * team.activity;
+        
+        return team.power * (1 + DEFAULT_BOOST_FACTOR * activityBoost);
     }
 
     /**
@@ -243,6 +252,10 @@ class RT25KSimulator {
      */
     updateStandings(standings, match) {
         const { team1, team2, score1, score2, group } = match;
+        
+        // Update games played count
+        this.gamesPlayed[team1] = (this.gamesPlayed[team1] || 0) + 1;
+        this.gamesPlayed[team2] = (this.gamesPlayed[team2] || 0) + 1;
         
         const groupStandings = standings[group];
         if (!groupStandings) return;
