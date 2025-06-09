@@ -226,174 +226,86 @@ module.exports = {
           }
         }
         
+        // Format the simulation results
+        let resultMessage = '';
+        
+        // Add team power and activity information
+        resultMessage += '**Team Power and Activity:**\n';
+        const teamInfo = [];
+        
+        // Get unique teams and their info
+        const allTeams = new Set();
+        simulatedMatches.forEach(match => {
+            allTeams.add(match.team1);
+            allTeams.add(match.team2);
+        });
+        
+        // Get power and activity for each team
+        for (const teamName of allTeams) {
+            const powerInfo = simulator.getAdjustedPower(teamName);
+            const teamData = simulator.teamData[teamName] || { power: 0, activity: 0 };
+            const gamesPlayed = simulator.gamesPlayed[teamName] || 0;
+            const activityStatus = gamesPlayed >= GAMES_FOR_MAX_BOOST ? 'active' : 'inactive';
+            const activityMultiplier = (1 + DEFAULT_BOOST_FACTOR * (Math.min(gamesPlayed / GAMES_FOR_MAX_BOOST, 1.0) * teamData.activity)).toFixed(2);
+            
+            teamInfo.push({
+                name: teamName,
+                power: teamData.power.toFixed(2),
+                activity: teamData.activity.toFixed(2),
+                games: gamesPlayed,
+                status: activityStatus,
+                multiplier: activityMultiplier,
+                finalPower: powerInfo.finalPower.toFixed(2)
+            });
+        }
+        
+        // Sort by final power
+        teamInfo.sort((a, b) => b.finalPower - a.finalPower);
+        
+        // Add team info to result
+        teamInfo.forEach(team => {
+            resultMessage += `\n**${team.name}**: ${team.finalPower} (base: ${team.power}, `;
+            resultMessage += `activity: ${team.activity} x ${team.status} (${team.games} games) = x${team.multiplier})`;
+        });
+        
+        // Add match results with game scores
+        resultMessage += '\n\n**Simulated Match Results:**\n';
+        simulatedMatches.forEach((match, index) => {
+            // Only show matches involving the filtered team if a filter is set
+            if (teamFilter && match.team1 !== teamFilter && match.team2 !== teamFilter) {
+                return;
+            }
+            
+            const team1Info = simulator.getAdjustedPower(match.team1);
+            const team2Info = simulator.getAdjustedPower(match.team2);
+            
+            resultMessage += `\n**${match.team1}** ${match.score1}-${match.score2} **${match.team2}** `;
+            resultMessage += `[${team1Info.finalPower.toFixed(2)} vs ${team2Info.finalPower.toFixed(2)}]`;
+            
+            // Add game results if available
+            if (match.gameResults && match.gameResults.length > 0) {
+                // Take the first simulation's game results (or average if you prefer)
+                const games = match.gameResults[0];
+                resultMessage += ' (';
+                resultMessage += games.map(game => `${game.winner} d. ${game.loser}`).join(', ');
+                resultMessage += ')';
+            }
+            
+            if (match.isSweep) {
+                resultMessage += ' (Sweep!)';
+            }
+        });
+        
         // Create and send the embed
         const embed = new EmbedBuilder()
           .setTitle(teamFilter 
             ? `🎮 Simulated Match Results for ${teamFilter}` 
             : '🎮 Simulated Match Results')
           .setColor('#0099ff')
-          .setDescription(teamFilter 
-            ? `Results of simulated matches for ${teamFilter}:`
-            : 'Results of simulated remaining matches:')
+          .setDescription(resultMessage)
           .setTimestamp();
 
-        if (simulatedMatches.length > 0) {
-          try {
-            // Group matches by team
-            const teamMatches = {};
-            
-            // First, validate all match data and group by team
-            for (const match of simulatedMatches) {
-              if (!match || !match.team1 || !match.team2 || match.score1 === undefined || match.score2 === undefined) {
-                console.error('Invalid match data:', JSON.stringify(match, null, 2));
-                throw new Error('Invalid match data received from simulation');
-              }
-              
-              // Add to team1's matches
-              if (!teamMatches[match.team1]) teamMatches[match.team1] = [];
-              teamMatches[match.team1].push({
-                opponent: match.team2,
-                score1: match.score1,
-                score2: match.score2,
-                points: match.team1Points,
-                isSweep: match.isSweep,
-                gameResults: match.gameResults // Include game results
-              });
-              
-              // Add to team2's matches
-              if (!teamMatches[match.team2]) teamMatches[match.team2] = [];
-              teamMatches[match.team2].push({
-                opponent: match.team1,
-                score1: match.score2,
-                score2: match.score1,
-                points: match.team2Points,
-                isSweep: match.isSweep && match.score2 === 0,
-                gameResults: match.gameResults // Include game results
-              });
-            }
-
-            
-            // Sort teams alphabetically, or use the filtered team if specified
-            const sortedTeams = teamFilter 
-              ? [teamFilter].filter(t => teamMatches[t])
-              : Object.keys(teamMatches).sort();
-            
-            if (sortedTeams.length === 0) {
-              return interaction.editReply('❌ No valid team data found for the simulation.');
-            }
-            
-            // Process each team's matches
-            for (const team of sortedTeams) {
-              const teamMatchList = teamMatches[team];
-              let teamText = '';
-              let totalPoints = 0;
-              
-              // Sort matches by opponent name for consistency
-              teamMatchList.sort((a, b) => a.opponent.localeCompare(b.opponent));
-              
-              // Format each match for this team
-              for (const match of teamMatchList) {
-                const scoreText = `vs ${match.opponent}: ${match.score1}-${match.score2}`;
-                const pointsText = `(${match.points} pts)`;
-                const sweepText = match.isSweep ? '🔥 ' : '';
-                const gameResultsText = match.gameResults ? ` (${match.gameResults.map(game => `${game.winner} d. ${game.loser}`).join(', ')})` : '';
-                teamText += `${sweepText}${scoreText} ${pointsText}${gameResultsText}\n`;
-                totalPoints += match.points || 0;
-              }
-              
-              // Add team's matches to embed
-              if (teamText.length > 0) {
-                // Add total points for the team
-                const teamHeader = `**${team}** (${totalPoints} total points):`;
-                teamText = `${teamHeader}\n${teamText}`;
-                
-                // Split if too long for a single field
-                if (teamText.length > 1000) {
-                  const half = Math.ceil(teamMatchList.length / 2);
-                  const firstHalf = teamMatchList.slice(0, half);
-                  const secondHalf = teamMatchList.slice(half);
-                  
-                  // Process first half
-                  let firstHalfText = `${teamHeader}\n`;
-                  firstHalfText += firstHalf.map(m => 
-                    `${m.isSweep ? '🔥 ' : ''}vs ${m.opponent}: ${m.score1}-${m.score2} (${m.points} pts)${m.gameResults ? ` (${m.gameResults.map(game => `${game.winner} d. ${game.loser}`).join(', ')})` : ''}`
-                  ).join('\n');
-                  
-                  // Process second half
-                  let secondHalfText = '';
-                  secondHalfText += secondHalf.map(m => 
-                    `${m.isSweep ? '🔥 ' : ''}vs ${m.opponent}: ${m.score1}-${m.score2} (${m.points} pts)${m.gameResults ? ` (${m.gameResults.map(game => `${game.winner} d. ${game.loser}`).join(', ')})` : ''}`
-                  ).join('\n');
-                  
-                  // Add both halves as separate fields
-                  embed.addFields(
-                    { name: `${team} (Part 1)`, value: firstHalfText, inline: false },
-                    { name: `${team} (Part 2)`, value: secondHalfText, inline: false }
-                  );
-                } else {
-                  embed.addFields({
-                    name: team,
-                    value: teamText,
-                    inline: false
-                  });
-                }
-              }
-            }
-
-            // If we filtered by team, add a note about the full simulation
-            if (teamFilter) {
-              embed.setFooter({
-                text: `Note: Showing only ${teamFilter}'s matches. Use /simulate without a team to see all matches.`
-              });
-            }
-
-            // Calculate total points earned in simulation for each team
-            const pointsEarned = {};
-            
-            // Initialize all teams with 0 points earned
-            for (const team of standings) {
-              if (team?.team) {
-                pointsEarned[team.team] = 0;
-              }
-            }
-            
-            // Calculate points from simulated matches
-            for (const match of simulatedMatches) {
-              if (!match.team1 || !match.team2) continue;
-              pointsEarned[match.team1] = (pointsEarned[match.team1] || 0) + (match.team1Points || 0);
-              pointsEarned[match.team2] = (pointsEarned[match.team2] || 0) + (match.team2Points || 0);
-            }
-            
-            // Create a list of teams that earned points in the simulation
-            const teamsWithPoints = Object.entries(pointsEarned)
-              .filter(([_, points]) => points > 0)
-              .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-            
-            if (teamsWithPoints.length > 0) {
-              const pointsList = teamsWithPoints
-                .map(([team, points]) => `• ${team}: +${points} pts`)
-                .join('\n');
-                
-              try {
-                embed.addFields({
-                  name: 'Points Earned in Simulation',
-                  value: pointsList,
-                  inline: false
-                });
-              } catch (err) {
-                console.error('Error adding points field:', err);
-              }
-            }
-
-            await interaction.editReply({ embeds: [embed] });
-            
-          } catch (error) {
-            console.error('Error formatting simulation results:', error);
-            await interaction.editReply('❌ An error occurred while formatting the simulation results.');
-          }
-        } else {
-          await interaction.editReply('❌ No matches were simulated.');
-        }
+        await interaction.editReply({ embeds: [embed] });
         
       } catch (error) {
         console.error('Error in simulation:', error);

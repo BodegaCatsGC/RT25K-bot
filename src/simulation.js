@@ -97,30 +97,57 @@ class RT25KSimulator {
 
     /**
      * @param {string} teamName
-     * @returns {number}
+     * @returns {{basePower: number, activityBoost: number, finalPower: number}}
      */
     getAdjustedPower(teamName) {
         const team = this.teamData[teamName];
-        if (!team) return 0;
+        if (!team) return { basePower: 0, activityBoost: 0, finalPower: 0 };
         
         // Calculate activity boost based on number of games played
         const gamesPlayed = this.gamesPlayed[teamName] || 0;
-        const activityBoost = Math.min(gamesPlayed / GAMES_FOR_MAX_BOOST, 1.0) * team.activity;
+        const activityFactor = Math.min(gamesPlayed / GAMES_FOR_MAX_BOOST, 1.0);
+        const activityBoost = activityFactor * team.activity;
+        const finalPower = team.power * (1 + DEFAULT_BOOST_FACTOR * activityBoost);
         
-        return team.power * (1 + DEFAULT_BOOST_FACTOR * activityBoost);
+        return {
+            basePower: team.power,
+            activityBoost: activityBoost,
+            finalPower: finalPower
+        };
     }
 
     /**
      * @param {string} teamA
      * @param {string} teamB
-     * @returns {{winner: string, scoreA: number, scoreB: number, gameScores: Array<{winner: string, loser: string}>}}
+     * @returns {{winner: string, scoreA: number, scoreB: number, gameScores: Array<{winner: string, loser: string}>, details: {teamA: {power: number, activity: number, games: number}, teamB: {power: number, activity: number, games: number}}}}
      */
     simulateGame(teamA, teamB) {
         const aPower = this.getAdjustedPower(teamA);
         const bPower = this.getAdjustedPower(teamB);
-        const total = aPower + bPower;
+        const total = aPower.finalPower + bPower.finalPower;
         const roll = Math.random() * total;
-        return roll < aPower ? teamA : teamB;
+        const winner = roll < aPower.finalPower ? teamA : teamB;
+        
+        return {
+            winner,
+            scoreA: winner === teamA ? 1 : 0,
+            scoreB: winner === teamB ? 1 : 0,
+            gameScores: [{ winner, loser: winner === teamA ? teamB : teamA }],
+            details: {
+                teamA: {
+                    power: aPower.basePower,
+                    activity: this.teamData[teamA]?.activity || 0,
+                    games: this.gamesPlayed[teamA] || 0,
+                    finalPower: aPower.finalPower.toFixed(2)
+                },
+                teamB: {
+                    power: bPower.basePower,
+                    activity: this.teamData[teamB]?.activity || 0,
+                    games: this.gamesPlayed[teamB] || 0,
+                    finalPower: bPower.finalPower.toFixed(2)
+                }
+            }
+        };
     }
 
     /**
@@ -135,13 +162,13 @@ class RT25KSimulator {
         const requiredWins = Math.ceil(DEFAULT_BEST_OF_SERIES / 2);
 
         while (scoreA < requiredWins && scoreB < requiredWins) {
-            const winner = this.simulateGame(teamA, teamB);
+            const { winner, score1, score2, gameScores: gameScore } = this.simulateGame(teamA, teamB);
             if (winner === teamA) {
                 scoreA++;
-                gameScores.push({ winner: teamA, loser: teamB });
+                gameScores.push(...gameScore);
             } else {
                 scoreB++;
-                gameScores.push({ winner: teamB, loser: teamA });
+                gameScores.push(...gameScore);
             }
         }
 
@@ -154,9 +181,28 @@ class RT25KSimulator {
     }
 
     /**
+     * Initialize games played count from existing matches
+     */
+    initializeGamesPlayed() {
+        // Reset games played
+        this.gamesPlayed = {};
+        
+        // Count games from existing matches
+        this.matches.forEach(match => {
+            if (match.score1 >= 0 && match.score2 >= 0) {
+                this.gamesPlayed[match.team1] = (this.gamesPlayed[match.team1] || 0) + 1;
+                this.gamesPlayed[match.team2] = (this.gamesPlayed[match.team2] || 0) + 1;
+            }
+        });
+    }
+
+    /**
      * @returns {{standings: SimulationResult, simulatedMatches: Array<{team1: string, team2: string, score1: number, score2: number, gameScores: Array<{winner: string, loser: string}>}>}}
      */
     simulateRemainingMatches() {
+        // Initialize games played count from existing matches
+        this.initializeGamesPlayed();
+        
         /** @type {SimulationResult} */
         const results = {};
         this.simulatedMatches = [];
