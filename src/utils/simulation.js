@@ -20,6 +20,7 @@ const ACTIVITY_LEVELS = {
 const BASE_POWER_MULTIPLIER = 0.1;  // How much total_points affect power
 const MIN_POWER = 0.5;              // Minimum power level for any team
 const RANDOMNESS_FACTOR = 0.15;     // Add some randomness to simulations
+const GAMES_FOR_MAX_BOOST = 5;      // Games required for maximum activity boost
 
 class RT25KSimulator {
   /**
@@ -49,30 +50,18 @@ class RT25KSimulator {
 
   /**
    * Calculate how many games each team has played
+   * This updates the gamesPlayed count while respecting the official count from standings
    */
   calculateGamesPlayed() {
-    // Reset game counts
+    // First, set games played from official standings
     Object.values(this.teamData).forEach(team => {
-      team.gamesPlayed = 0;
-    });
-    
-    // Count games for each team
-    for (const match of this.matches) {
-      if (match.completed) {
-        const team1 = this.teamData[match.team1];
-        const team2 = this.teamData[match.team2];
-        
-        if (team1) team1.gamesPlayed += match.score1 + match.score2;
-        if (team2) team2.gamesPlayed += match.score1 + match.score2;
+      // Keep the original gamesPlayed from standings if it exists
+      if (team.gamesPlayed === undefined) {
+        team.gamesPlayed = 0;
       }
-    }
-    
-    // Log game counts for debugging
-    Object.entries(this.teamData).forEach(([teamName, team]) => {
-      console.log(`Team ${teamName} has played ${team.gamesPlayed} games`);
     });
     
-    // Update activity levels and power based on games played
+    // Then, update activity levels and power based on games played
     Object.entries(this.teamData).forEach(([teamName, team]) => {
       team.activity = this.getActivityLevel(teamName);
       team.power = Math.max(
@@ -210,44 +199,44 @@ class RT25KSimulator {
     return matches;
   }
 
+  /**
+   * Get the adjusted power for a team, considering activity boost
+   * @param {string} teamName - Name of the team
+   * @returns {{basePower: number, activityBoost: number, finalPower: number, gamesPlayed: number}}
+   */
   getAdjustedPower(teamName) {
-    const team = this.teamData[teamName];
-    if (!team) {
-      console.warn(`Team ${teamName} not found in team data`);
-      return MIN_POWER;
+    try {
+      const team = this.teamData[teamName];
+      if (!team) {
+        console.warn(`Team not found: ${teamName}`);
+        return { basePower: 0, activityBoost: 0, finalPower: 0, gamesPlayed: 0 };
+      }
+
+      const basePower = team.power || 0;
+      const gamesPlayed = team.gamesPlayed || 0;
+      
+      // Calculate activity boost based on games played
+      const activityFactor = Math.min(gamesPlayed / GAMES_FOR_MAX_BOOST, 1.0);
+      const activityBoost = activityFactor * (team.activity === 'active' ? ACTIVITY_LEVELS.active.multiplier : 0);
+      
+      // Calculate final power with boost
+      const finalPower = basePower * (1 + activityBoost);
+      
+      return {
+        basePower,
+        activityBoost,
+        finalPower,
+        gamesPlayed
+      };
+    } catch (error) {
+      console.error(`Error calculating adjusted power for ${teamName}:`, error);
+      return { basePower: 0, activityBoost: 0, finalPower: 0, gamesPlayed: 0 };
     }
-    
-    // Base power from points (ensure it's a number)
-    const points = Number(team.points) || 0;
-    let basePower = points * BASE_POWER_MULTIPLIER;
-    
-    // Ensure base power is at least MIN_POWER
-    basePower = Math.max(MIN_POWER, basePower);
-    
-    // Get activity level based on games played
-    const activityLevel = this.getActivityLevel(teamName);
-    const activityMultiplier = ACTIVITY_LEVELS[activityLevel]?.multiplier || 0.1;
-    
-    // Apply activity multiplier
-    let adjustedPower = basePower * activityMultiplier;
-    
-    // Add some randomness (up to ±15%)
-    const randomness = 1 + (Math.random() * 2 - 1) * RANDOMNESS_FACTOR;
-    adjustedPower = adjustedPower * randomness;
-    
-    // Ensure power is within bounds
-    adjustedPower = Math.max(MIN_POWER, Math.min(1.0, adjustedPower));
-    
-    console.log(`Team ${teamName}: ${points} pts, ${team.gamesPlayed || 0} games, ` +
-                `activity: ${activityLevel} (x${activityMultiplier}), ` +
-                `base: ${basePower.toFixed(2)}, final: ${adjustedPower.toFixed(2)}`);
-    
-    return adjustedPower;
   }
 
   simulateGame(teamA, teamB) {
-    const aPower = this.getAdjustedPower(teamA);
-    const bPower = this.getAdjustedPower(teamB);
+    const aPower = this.getAdjustedPower(teamA).finalPower;
+    const bPower = this.getAdjustedPower(teamB).finalPower;
     const total = aPower + bPower;
     
     // Ensure we have valid power values
@@ -584,8 +573,8 @@ class RT25KSimulator {
         }
         
         // 4. If still tied, simulate a tiebreak game
-        const aPower = this.getAdjustedPower(a);
-        const bPower = this.getAdjustedPower(b);
+        const aPower = this.getAdjustedPower(a.team).finalPower;
+        const bPower = this.getAdjustedPower(b.team).finalPower;
         return bPower - aPower; // Higher power comes first
       });
       

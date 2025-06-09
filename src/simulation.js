@@ -41,68 +41,88 @@ const GAMES_FOR_MAX_BOOST = 5; // Number of games needed for maximum boost
 const MAX_BOOST_MULTIPLIER = 2.0; // Maximum boost multiplier (2.0 = 2x power)
 
 class RT25KSimulator {
-    constructor(googleSheets) {
-        this.googleSheets = googleSheets;
+    /**
+     * @param {Array} standings - Array of team standings
+     * @param {Array} schedule - Array of matches
+     */
+    constructor(standings, schedule) {
+        if (!standings || !Array.isArray(standings)) {
+            throw new Error('Standings must be a non-empty array');
+        }
+        
+        if (!schedule || !Array.isArray(schedule)) {
+            console.warn('No schedule provided or invalid schedule format, using empty array');
+            schedule = [];
+        }
+        
         /** @type {Object.<string, TeamData>} */
-        this.teamData = {};
-        /** @type {MatchResult[]} */
-        this.matches = [];
-        /** @type {Object.<string, number>} */
-        this.gamesPlayed = {}; // Track number of games played by each team
-        /** @type {Array<{team1: string, team2: string, score1: number, score2: number, gameScores: Array<{winner: string, loser: string}>}>} */
-        this.simulatedMatches = [];
+        this.teamData = this.prepareTeamData(standings);
+        this.matches = this.prepareMatches(schedule);
+        
+        // Calculate games played for each team from matches
+        this.calculateGamesPlayed();
+        
+        console.log(`Simulator initialized with ${Object.keys(this.teamData).length} teams and ${this.matches.length} matches`);
     }
 
     /**
-     * @param {string} sheetId
-     * @param {string} sheetName
-     * @param {Array} standings - Array of team standings with gamesPlayed
-     * @returns {Promise<void>}
+     * @param {Array} standings - Array of team standings
+     * @returns {Object.<string, TeamData>}
      */
-    async loadTeamData(sheetId, sheetName, standings = []) {
-        const doc = this.googleSheets.doc(sheetId);
-        await doc.loadInfo();
-        const sheet = doc.sheetsByTitle[sheetName];
-        const rows = await sheet.getRows();
-
-        // Create a map of team name to games played from standings
-        const gamesPlayedMap = {};
+    prepareTeamData(standings) {
+        const teamData = {};
+        
         standings.forEach(standing => {
-            gamesPlayedMap[standing.team] = standing.gamesPlayed || 0;
-        });
-
-        this.teamData = rows.reduce((acc, row) => {
-            const teamName = row.get('Team Name') || row.get('Team');
-            if (!teamName) return acc;
+            const teamName = standing.team;
+            if (!teamName) return;
             
-            acc[teamName] = {
-                power: parseFloat(row.get('Power') || '0'),
-                activity: parseFloat(row.get('Activity') || '0'),
-                group: row.get('Group') || 'DefaultGroup',
-                gamesPlayed: gamesPlayedMap[teamName] || 0
+            teamData[teamName] = {
+                power: standing.power || 0,
+                activity: standing.activity || 0,
+                group: standing.group || 'DefaultGroup',
+                gamesPlayed: standing.gamesPlayed || 0
             };
-            return acc;
-        }, {});
+        });
+        
+        return teamData;
     }
 
     /**
-     * @param {string} sheetId
-     * @param {string} sheetName
-     * @returns {Promise<void>}
+     * @param {Array} schedule - Array of matches
+     * @returns {MatchResult[]}
      */
-    async loadMatches(sheetId, sheetName) {
-        const doc = this.googleSheets.doc(sheetId);
-        await doc.loadInfo();
-        const sheet = doc.sheetsByTitle[sheetName];
-        const rows = await sheet.getRows();
+    prepareMatches(schedule) {
+        const matches = [];
+        
+        schedule.forEach(match => {
+            if (!match.team1 || !match.team2) return;
+            
+            matches.push({
+                team1: match.team1,
+                team2: match.team2,
+                score1: match.score1 || 0,
+                score2: match.score2 || 0,
+                group: match.group || 'DefaultGroup'
+            });
+        });
+        
+        return matches;
+    }
 
-        this.matches = rows.map(row => ({
-            team1: row.get('team1'),
-            team2: row.get('team2'),
-            score1: parseInt(row.get('score1') || '0', 10),
-            score2: parseInt(row.get('score2') || '0', 10),
-            group: row.get('group') || 'DefaultGroup'
-        })).filter(match => match.team1 && match.team2);
+    /**
+     * Calculate games played for each team from matches
+     */
+    calculateGamesPlayed() {
+        const gamesPlayed = {};
+        
+        this.matches.forEach(match => {
+            if (match.score1 >= 0 && match.score2 >= 0) {
+                gamesPlayed[match.team1] = (gamesPlayed[match.team1] || 0) + 1;
+                gamesPlayed[match.team2] = (gamesPlayed[match.team2] || 0) + 1;
+            }
+        });
+        
+        this.gamesPlayed = gamesPlayed;
     }
 
     /**
@@ -199,27 +219,11 @@ class RT25KSimulator {
     }
 
     /**
-     * Initialize games played count from existing matches
-     */
-    initializeGamesPlayed() {
-        // Reset games played
-        this.gamesPlayed = {};
-        
-        // Count games from existing matches
-        this.matches.forEach(match => {
-            if (match.score1 >= 0 && match.score2 >= 0) {
-                this.gamesPlayed[match.team1] = (this.gamesPlayed[match.team1] || 0) + 1;
-                this.gamesPlayed[match.team2] = (this.gamesPlayed[match.team2] || 0) + 1;
-            }
-        });
-    }
-
-    /**
      * @returns {{standings: SimulationResult, simulatedMatches: Array<{team1: string, team2: string, score1: number, score2: number, gameScores: Array<{winner: string, loser: string}>}>}}
      */
     simulateRemainingMatches() {
         // Initialize games played count from existing matches
-        this.initializeGamesPlayed();
+        this.calculateGamesPlayed();
         
         /** @type {SimulationResult} */
         const results = {};
