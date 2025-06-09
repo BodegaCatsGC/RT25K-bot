@@ -47,6 +47,8 @@ class RT25KSimulator {
         this.matches = [];
         /** @type {Object.<string, number>} */
         this.gamesPlayed = {}; // Track number of games played by each team
+        /** @type {Array<{team1: string, team2: string, score1: number, score2: number, gameScores: Array<{winner: string, loser: string}>}>} */
+        this.simulatedMatches = [];
     }
 
     /**
@@ -157,8 +159,7 @@ class RT25KSimulator {
     simulateRemainingMatches() {
         /** @type {SimulationResult} */
         const results = {};
-        /** @type {Array<{team1: string, team2: string, score1: number, score2: number, gameScores: Array<{winner: string, loser: string}>}>} */
-        const simulatedMatches = [];
+        this.simulatedMatches = [];
 
         // Initialize group standings
         Object.entries(this.teamData).forEach(([teamName, data]) => {
@@ -214,7 +215,7 @@ class RT25KSimulator {
                             gameScores,
                             group
                         };
-                        simulatedMatches.push(simulatedMatch);
+                        this.simulatedMatches.push(simulatedMatch);
                         this.updateStandings(results, simulatedMatch);
                     }
                 }
@@ -243,7 +244,7 @@ class RT25KSimulator {
             });
         });
 
-        return { standings: results, simulatedMatches };
+        return { standings: results, simulatedMatches: this.simulatedMatches };
     }
 
     /**
@@ -298,8 +299,11 @@ class RT25KSimulator {
      * @returns {number | null}
      */
     getHeadToHead(teamA, teamB, groupTeams) {
-        // Get all matches between these two teams in the group stage
-        const matches = this.matches.filter(match => 
+        // Get all matches between these two teams (both played and simulated)
+        const matches = [
+            ...this.matches,
+            ...(this.simulatedMatches || [])
+        ].filter(match => 
             ((match.team1 === teamA && match.team2 === teamB) || 
              (match.team1 === teamB && match.team2 === teamA)) &&
             match.score1 >= 0 && match.score2 >= 0
